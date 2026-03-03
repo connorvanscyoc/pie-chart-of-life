@@ -361,21 +361,39 @@
         
         .date-text-input {
             width: 100%;
-            background: rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, 0.06) !important;
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
             padding: 10px 12px;
-            color: #fff;
+            color: #fff !important;
             font-size: 0.9rem;
             outline: none;
+            -webkit-appearance: none;
+            appearance: none;
         }
         
         .date-text-input:focus {
             border-color: #667eea;
+            background: rgba(255, 255, 255, 0.06) !important;
+        }
+        
+        .date-text-input:active,
+        .date-text-input:valid,
+        .date-text-input:not(:placeholder-shown) {
+            background: rgba(255, 255, 255, 0.06) !important;
+            color: #fff !important;
         }
         
         .date-text-input::placeholder {
             color: #666;
+        }
+        
+        /* Prevent autofill from changing background */
+        .date-text-input:-webkit-autofill,
+        .date-text-input:-webkit-autofill:hover,
+        .date-text-input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px rgba(26, 26, 46, 1) inset !important;
+            -webkit-text-fill-color: #fff !important;
         }
         
         .tab-bar {
@@ -848,7 +866,7 @@
             'Monaco', 'Vatican City'
         ];
         
-        // US States + DC only (for counting states visited)
+        // US States only (for counting states visited - DC is not a state)
         const US_STATES = new Set([
             'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado',
             'Connecticut', 'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho',
@@ -859,7 +877,7 @@
             'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon',
             'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
             'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington',
-            'West Virginia', 'Wisconsin', 'Wyoming', 'Washington DC'
+            'West Virginia', 'Wisconsin', 'Wyoming'
         ]);
         
         // US States + DC + Territories (for excluding from country count)
@@ -961,7 +979,13 @@
             const fromDate = document.getElementById('date-from');
             const toDate = document.getElementById('date-to');
             
-            function formatDateInput(input) {
+            function formatDateInput(e) {
+                const input = e.target;
+                // Allow backspace/delete to work normally
+                if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') {
+                    return;
+                }
+                
                 let value = input.value.replace(/\D/g, '');
                 if (value.length > 8) value = value.slice(0, 8);
                 
@@ -988,8 +1012,8 @@
                 }
             }
             
-            fromText.addEventListener('input', () => formatDateInput(fromText));
-            toText.addEventListener('input', () => formatDateInput(toText));
+            fromText.addEventListener('input', formatDateInput);
+            toText.addEventListener('input', formatDateInput);
             
             fromText.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') parseAndSetDate(fromText, fromDate);
@@ -1805,52 +1829,91 @@
             const { startDate, endDate } = getDateRange();
             const totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
             
-            // Always calculate daily, but thin out display points if too many
-            // We want roughly 200-500 points max for performance
-            const maxPoints = 400;
-            const skipDays = totalDays > maxPoints ? Math.ceil(totalDays / maxPoints) : 1;
+            // Limit display points for performance
+            const maxPoints = 200;
+            const numPoints = Math.min(totalDays, maxPoints);
+            const msPerPoint = (endDate - startDate) / numPoints;
             
-            // Generate time points (daily, but sampled if range is large)
-            let timePoints = [];
-            let d = new Date(startDate);
-            let dayCount = 0;
-            while (d <= endDate) {
-                if (dayCount % skipDays === 0 || d >= endDate) {
-                    timePoints.push(new Date(d));
+            // Generate evenly spaced sample points
+            let samplePoints = [];
+            for (let i = 0; i <= numPoints; i++) {
+                samplePoints.push(new Date(startDate.getTime() + i * msPerPoint));
+            }
+            
+            // EFFICIENT: Calculate cumulative for each location in a single pass
+            const cumulativeData = {};
+            
+            selectedLocations.forEach(loc => {
+                cumulativeData[loc] = [];
+                let runningTotal = 0;
+                let sampleIdx = 0;
+                const now = getAccurateNow();
+                
+                for (let i = 0; i < entries.length && sampleIdx < samplePoints.length; i++) {
+                    const entry = entries[i];
+                    const entryStart = new Date(entry.timestamp);
+                    
+                    // Determine entry end time
+                    let entryEnd;
+                    if (i < entries.length - 1) {
+                        entryEnd = new Date(entries[i + 1].timestamp);
+                    } else {
+                        entryEnd = now;
+                    }
+                    
+                    // Skip if entry is entirely outside our range
+                    if (entryEnd <= startDate) continue;
+                    if (entryStart >= endDate) break;
+                    
+                    // Record samples that fall before this entry starts
+                    while (sampleIdx < samplePoints.length && samplePoints[sampleIdx] <= entryStart) {
+                        cumulativeData[loc].push(runningTotal / 86400);
+                        sampleIdx++;
+                    }
+                    
+                    // For this entry, record samples that fall during it
+                    while (sampleIdx < samplePoints.length && samplePoints[sampleIdx] < entryEnd && samplePoints[sampleIdx] <= endDate) {
+                        const sampleTime = samplePoints[sampleIdx];
+                        
+                        if (entry.location === loc) {
+                            // Add time from entry start (or range start) to this sample
+                            const effectiveStart = Math.max(entryStart.getTime(), startDate.getTime());
+                            const partialTime = (sampleTime.getTime() - effectiveStart) / 1000;
+                            cumulativeData[loc].push((runningTotal + Math.max(0, partialTime)) / 86400);
+                        } else {
+                            cumulativeData[loc].push(runningTotal / 86400);
+                        }
+                        sampleIdx++;
+                    }
+                    
+                    // Add this entry's full contribution if it's our location
+                    if (entry.location === loc) {
+                        const effectiveStart = Math.max(entryStart.getTime(), startDate.getTime());
+                        const effectiveEnd = Math.min(entryEnd.getTime(), endDate.getTime());
+                        if (effectiveEnd > effectiveStart) {
+                            runningTotal += (effectiveEnd - effectiveStart) / 1000;
+                        }
+                    }
                 }
-                d.setDate(d.getDate() + 1);
-                dayCount++;
-            }
-            // Always include the end date
-            if (timePoints[timePoints.length - 1] < endDate) {
-                timePoints.push(new Date(endDate));
-            }
+                
+                // Fill remaining sample points with final total
+                while (sampleIdx < samplePoints.length) {
+                    cumulativeData[loc].push(runningTotal / 86400);
+                    sampleIdx++;
+                }
+            });
             
-            // Smart label formatting based on range
+            // Smart label formatting
             let formatLabel;
             if (totalDays <= 60) {
                 formatLabel = (d) => `${d.getMonth()+1}/${d.getDate()}`;
-            } else if (totalDays <= 365) {
-                formatLabel = (d) => `${d.getMonth()+1}/${d.getDate()}`;
-            } else if (totalDays <= 365 * 3) {
+            } else if (totalDays <= 365 * 2) {
                 formatLabel = (d) => `${d.getMonth()+1}/${d.getFullYear().toString().slice(-2)}`;
             } else {
-                formatLabel = (d) => `${d.getMonth()+1}/${d.getFullYear().toString().slice(-2)}`;
+                formatLabel = (d) => `${d.getFullYear()}`;
             }
             
-            // Calculate cumulative totals at each time point
-            const cumulativeData = {};
-            selectedLocations.forEach(loc => {
-                cumulativeData[loc] = [];
-                
-                timePoints.forEach((point) => {
-                    // Calculate total from startDate to this point
-                    const totals = calculateLocationTotals(startDate, point);
-                    cumulativeData[loc].push((totals[loc] || 0) / 86400);
-                });
-            });
-            
-            const labels = timePoints.map(formatLabel);
+            const labels = samplePoints.map(formatLabel);
             
             const datasets = selectedLocations.map(loc => ({
                 label: loc,
@@ -1859,7 +1922,7 @@
                 backgroundColor: (locationColorMap[loc] || '#888') + '20',
                 fill: false,
                 tension: 0.1,
-                pointRadius: 0,  // Hide points, just show line
+                pointRadius: 0,
                 borderWidth: 2
             }));
             
@@ -1883,7 +1946,7 @@
                             grid: { color: 'rgba(255,255,255,0.1)' }, 
                             ticks: { 
                                 color: '#888',
-                                maxTicksLimit: 12,
+                                maxTicksLimit: 10,
                                 maxRotation: 45
                             } 
                         },
