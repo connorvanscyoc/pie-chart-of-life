@@ -670,6 +670,17 @@
             margin: 10px 12px;
         }
         
+        .trail-toggle {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        
+        .trail-toggle .tab-btn {
+            flex: 1;
+            text-align: center;
+        }
+        
         .modal-overlay {
             display: none;
             position: fixed;
@@ -927,12 +938,28 @@
                 <div class="centerpoint-stats">
                     <div class="cp-stat">
                         <div id="cp-distance-from-home" class="cp-stat-value">--</div>
-                        <div class="cp-stat-label">From Home (MD)</div>
+                        <div class="cp-stat-label">From Childhood Home</div>
+                    </div>
+                    <div class="cp-stat">
+                        <div id="cp-distance-from-birth" class="cp-stat-value">--</div>
+                        <div class="cp-stat-label">From Birthplace</div>
                     </div>
                     <div class="cp-stat">
                         <div id="cp-locations-count" class="cp-stat-value">--</div>
                         <div class="cp-stat-label">Locations</div>
                     </div>
+                    <div class="cp-stat">
+                        <div id="cp-total-days" class="cp-stat-value">--</div>
+                        <div class="cp-stat-label">Days Tracked</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="centerpoint-info">
+                <div class="centerpoint-title">Historical Trail</div>
+                <div class="trail-toggle">
+                    <button class="tab-btn active" id="trail-off-btn">Off</button>
+                    <button class="tab-btn" id="trail-on-btn">Show Trail</button>
                 </div>
             </div>
         </div>
@@ -1131,7 +1158,8 @@
         };
         
         // Home location for distance calculation
-        const HOME_COORDS = [39.063946, -76.802101]; // Maryland
+        const CHILDHOOD_HOME = [39.5925, -76.4730]; // 1507 Hunt Field Way, Jarrettsville, MD
+        const BIRTHPLACE = [39.3947, -76.6483]; // GBMC Hospital, Baltimore, MD
         
         // ============================================
         // HELPER: Check if location is a flight (handles both "Flight" and "Flights")
@@ -1159,6 +1187,10 @@
         let showAllLocations = false;
         let leafletMap = null;
         let centerpointMarker = null;
+        let trailLine = null;
+        let trailMarkers = [];
+        let showTrail = false;
+        let trailToggleInitialized = false;
         
         const BIRTH_DATE = new Date('1996-11-04T07:31:00-05:00');
         
@@ -2330,12 +2362,33 @@
             if (!leafletMap) {
                 leafletMap = L.map('map-container').setView([39.8283, -98.5795], 4);
                 
-                // Dark map tiles
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-                    subdomains: 'abcd',
+                // Dark map tiles (semi-dark for better visibility)
+                L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; Stadia Maps &copy; OpenMapTiles &copy; OpenStreetMap contributors',
                     maxZoom: 19
                 }).addTo(leafletMap);
+                
+                // Add childhood home marker
+                const homeIcon = L.divIcon({
+                    className: 'home-icon',
+                    html: `<div style="font-size: 20px;">🏠</div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+                L.marker(CHILDHOOD_HOME, { icon: homeIcon })
+                    .bindPopup('Childhood Home<br>Jarrettsville, MD')
+                    .addTo(leafletMap);
+                
+                // Add birthplace marker
+                const birthIcon = L.divIcon({
+                    className: 'birth-icon',
+                    html: `<div style="font-size: 18px;">👶</div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+                L.marker(BIRTHPLACE, { icon: birthIcon })
+                    .bindPopup('Birthplace<br>GBMC Hospital, Baltimore')
+                    .addTo(leafletMap);
             }
             
             // Small delay to ensure container is visible
@@ -2343,6 +2396,12 @@
                 leafletMap.invalidateSize();
                 updateCenterpoint();
             }, 100);
+            
+            // Initialize trail toggle only once
+            if (!trailToggleInitialized) {
+                initTrailToggle();
+                trailToggleInitialized = true;
+            }
         }
         
         function getMapDateRange() {
@@ -2481,10 +2540,11 @@
                 return;
             }
             
-            // Update marker
+            // Clear existing markers and trail
             if (centerpointMarker) {
                 leafletMap.removeLayer(centerpointMarker);
             }
+            clearTrail();
             
             // Custom icon for centerpoint
             const centerpointIcon = L.divIcon({
@@ -2510,9 +2570,13 @@
             // Get nearest city
             const nearest = getNearestCity(centerpoint.lat, centerpoint.lng);
             
-            // Calculate distance from home (Maryland)
-            const distFromHome = getDistanceKm(centerpoint.lat, centerpoint.lng, HOME_COORDS[0], HOME_COORDS[1]);
+            // Calculate distance from childhood home
+            const distFromHome = getDistanceKm(centerpoint.lat, centerpoint.lng, CHILDHOOD_HOME[0], CHILDHOOD_HOME[1]);
             const distFromHomeMiles = (distFromHome * 0.621371).toFixed(0);
+            
+            // Calculate distance from birthplace
+            const distFromBirth = getDistanceKm(centerpoint.lat, centerpoint.lng, BIRTHPLACE[0], BIRTHPLACE[1]);
+            const distFromBirthMiles = (distFromBirth * 0.621371).toFixed(0);
             
             // Update UI
             document.getElementById('centerpoint-location').textContent = 
@@ -2521,8 +2585,113 @@
                 `${centerpoint.lat.toFixed(4)}°, ${centerpoint.lng.toFixed(4)}°`;
             document.getElementById('cp-distance-from-home').textContent = 
                 `${distFromHomeMiles} mi`;
+            document.getElementById('cp-distance-from-birth').textContent = 
+                `${distFromBirthMiles} mi`;
             document.getElementById('cp-locations-count').textContent = 
                 centerpoint.locationCount;
+            document.getElementById('cp-total-days').textContent = 
+                centerpoint.totalDays.toFixed(0);
+            
+            // Show trail if enabled
+            if (showTrail) {
+                drawTrail();
+            }
+        }
+        
+        function clearTrail() {
+            if (trailLine) {
+                leafletMap.removeLayer(trailLine);
+                trailLine = null;
+            }
+            trailMarkers.forEach(m => leafletMap.removeLayer(m));
+            trailMarkers = [];
+        }
+        
+        function drawTrail() {
+            if (!leafletMap || entries.length === 0) return;
+            
+            clearTrail();
+            
+            const { startDate, endDate } = getMapDateRange();
+            
+            // Calculate centerpoint for each year in range
+            const startYear = Math.max(startDate.getFullYear(), new Date(entries[0].timestamp).getFullYear());
+            const endYear = Math.min(endDate.getFullYear(), getAccurateNow().getFullYear());
+            
+            const trailPoints = [];
+            
+            for (let year = startYear; year <= endYear; year++) {
+                const yearStart = new Date(Math.max(new Date(year, 0, 1), startDate));
+                const yearEnd = new Date(Math.min(new Date(year + 1, 0, 1), endDate));
+                
+                // Calculate cumulative centerpoint up to this year
+                const cp = calculateCenterpoint(startDate, yearEnd);
+                if (cp) {
+                    trailPoints.push({
+                        lat: cp.lat,
+                        lng: cp.lng,
+                        year: year
+                    });
+                }
+            }
+            
+            if (trailPoints.length < 2) return;
+            
+            // Draw trail line
+            const coords = trailPoints.map(p => [p.lat, p.lng]);
+            trailLine = L.polyline(coords, {
+                color: '#667eea',
+                weight: 3,
+                opacity: 0.7,
+                dashArray: '5, 10'
+            }).addTo(leafletMap);
+            
+            // Add year markers along trail
+            trailPoints.forEach((point, i) => {
+                // Only show every few years to avoid clutter, or first/last
+                if (i === 0 || i === trailPoints.length - 1 || i % 3 === 0) {
+                    const icon = L.divIcon({
+                        className: 'trail-year-icon',
+                        html: `<div style="
+                            background: rgba(102, 126, 234, 0.8);
+                            color: #fff;
+                            padding: 2px 6px;
+                            border-radius: 10px;
+                            font-size: 11px;
+                            font-weight: 600;
+                            white-space: nowrap;
+                        ">${point.year}</div>`,
+                        iconSize: [40, 20],
+                        iconAnchor: [20, 10]
+                    });
+                    
+                    const marker = L.marker([point.lat, point.lng], { icon: icon }).addTo(leafletMap);
+                    trailMarkers.push(marker);
+                }
+            });
+            
+            // Fit map to show entire trail
+            leafletMap.fitBounds(trailLine.getBounds(), { padding: [50, 50] });
+        }
+        
+        function initTrailToggle() {
+            const offBtn = document.getElementById('trail-off-btn');
+            const onBtn = document.getElementById('trail-on-btn');
+            
+            offBtn.addEventListener('click', () => {
+                showTrail = false;
+                offBtn.classList.add('active');
+                onBtn.classList.remove('active');
+                clearTrail();
+                updateCenterpoint();
+            });
+            
+            onBtn.addEventListener('click', () => {
+                showTrail = true;
+                onBtn.classList.add('active');
+                offBtn.classList.remove('active');
+                drawTrail();
+            });
         }
     </script>
 </body>
