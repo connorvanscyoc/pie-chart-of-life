@@ -1737,11 +1737,12 @@
                         },
                         tooltip: {
                             callbacks: {
+                                title: (items) => items[0]?.label || '',
                                 label: (ctx) => {
                                     const days = ctx.raw.toFixed(1);
                                     const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
                                     const pct = ((ctx.raw / total) * 100).toFixed(1);
-                                    return `${ctx.label}: ${days} days (${pct}%)`;
+                                    return `${days} days (${pct}%)`;
                                 }
                             }
                         }
@@ -1810,7 +1811,8 @@
                         tooltip: {
                             callbacks: {
                                 label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(1)} days`
-                            }
+                            },
+                            itemSort: (a, b) => b.raw - a.raw
                         }
                     },
                     scales: {
@@ -1903,17 +1905,24 @@
                 }
             });
             
-            // Smart label formatting
-            let formatLabel;
-            if (totalDays <= 60) {
-                formatLabel = (d) => `${d.getMonth()+1}/${d.getDate()}`;
-            } else if (totalDays <= 365 * 2) {
-                formatLabel = (d) => `${d.getMonth()+1}/${d.getFullYear().toString().slice(-2)}`;
-            } else {
-                formatLabel = (d) => `${d.getFullYear()}`;
-            }
+            // Better label formatting - always show month, vary year display
+            const labels = samplePoints.map((d, i) => {
+                const month = d.getMonth() + 1;
+                const year = d.getFullYear().toString().slice(-2);
+                
+                if (totalDays <= 60) {
+                    // Short range: show month/day
+                    return `${month}/${d.getDate()}`;
+                } else {
+                    // Everything else: show month/year
+                    return `${month}/${year}`;
+                }
+            });
             
-            const labels = samplePoints.map(formatLabel);
+            // Store dates for tooltip access
+            const dateLabels = samplePoints.map(d => {
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            });
             
             const datasets = selectedLocations.map(loc => ({
                 label: loc,
@@ -1937,8 +1946,15 @@
                         legend: { display: false },
                         tooltip: {
                             callbacks: {
-                                label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(1)} total days`
-                            }
+                                title: (items) => {
+                                    if (items.length > 0) {
+                                        return dateLabels[items[0].dataIndex];
+                                    }
+                                    return '';
+                                },
+                                label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(1)} days`
+                            },
+                            itemSort: (a, b) => b.raw - a.raw
                         }
                     },
                     scales: {
@@ -1946,7 +1962,7 @@
                             grid: { color: 'rgba(255,255,255,0.1)' }, 
                             ticks: { 
                                 color: '#888',
-                                maxTicksLimit: 10,
+                                maxTicksLimit: 12,
                                 maxRotation: 45
                             } 
                         },
