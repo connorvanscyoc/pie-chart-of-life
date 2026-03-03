@@ -948,10 +948,6 @@
                         <div id="cp-locations-count" class="cp-stat-value">--</div>
                         <div class="cp-stat-label">Locations</div>
                     </div>
-                    <div class="cp-stat">
-                        <div id="cp-total-days" class="cp-stat-value">--</div>
-                        <div class="cp-stat-label">Days Tracked</div>
-                    </div>
                 </div>
             </div>
             
@@ -2362,9 +2358,10 @@
             if (!leafletMap) {
                 leafletMap = L.map('map-container').setView([39.8283, -98.5795], 4);
                 
-                // Dark map tiles (semi-dark for better visibility)
-                L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
-                    attribution: '&copy; Stadia Maps &copy; OpenMapTiles &copy; OpenStreetMap contributors',
+                // Dark map tiles (CARTO - no auth required)
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                    subdomains: 'abcd',
                     maxZoom: 19
                 }).addTo(leafletMap);
                 
@@ -2589,8 +2586,6 @@
                 `${distFromBirthMiles} mi`;
             document.getElementById('cp-locations-count').textContent = 
                 centerpoint.locationCount;
-            document.getElementById('cp-total-days').textContent = 
-                centerpoint.totalDays.toFixed(0);
             
             // Show trail if enabled
             if (showTrail) {
