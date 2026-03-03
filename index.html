@@ -8,6 +8,8 @@
     <meta name="theme-color" content="#1a1a2e">
     <title>Pie Chart of Life</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         * {
             margin: 0;
@@ -589,6 +591,85 @@
             color: #666;
         }
         
+        #map-container {
+            height: 350px;
+            border-radius: 16px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .centerpoint-info {
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .centerpoint-title {
+            font-size: 0.85rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .centerpoint-location {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .centerpoint-coords {
+            font-size: 0.9rem;
+            color: #888;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        
+        .centerpoint-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .cp-stat {
+            background: rgba(255,255,255,0.04);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+        }
+        
+        .cp-stat-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #6bcb77;
+        }
+        
+        .cp-stat-label {
+            font-size: 0.7rem;
+            color: #888;
+            margin-top: 3px;
+        }
+        
+        .leaflet-popup-content-wrapper {
+            background: #1a1a2e;
+            color: #fff;
+            border-radius: 12px;
+        }
+        
+        .leaflet-popup-tip {
+            background: #1a1a2e;
+        }
+        
+        .leaflet-popup-content {
+            margin: 10px 12px;
+        }
+        
         .modal-overlay {
             display: none;
             position: fixed;
@@ -803,6 +884,58 @@
                 <div class="loading">Loading history...</div>
             </div>
         </div>
+        
+        <!-- MAP PAGE -->
+        <div id="page-map" class="page">
+            <header>
+                <h1>🗺️ Centerpoint</h1>
+            </header>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <label class="control-label">Time Range</label>
+                    <select class="control-select" id="map-time-range">
+                        <option value="all">All Time (Lifetime)</option>
+                        <option value="year">Specific Year</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                <div class="control-group" id="map-year-group" style="display:none;">
+                    <label class="control-label">Year</label>
+                    <select class="control-select" id="map-year-select"></select>
+                </div>
+            </div>
+            
+            <div class="date-range-controls" id="map-date-controls">
+                <div class="control-group">
+                    <label class="control-label">From</label>
+                    <input type="text" class="date-text-input" id="map-date-from" placeholder="MM/DD/YYYY">
+                </div>
+                <div class="control-group">
+                    <label class="control-label">To</label>
+                    <input type="text" class="date-text-input" id="map-date-to" placeholder="MM/DD/YYYY">
+                </div>
+            </div>
+            
+            <div id="map-container"></div>
+            
+            <div class="centerpoint-info">
+                <div class="centerpoint-title">Your Centerpoint</div>
+                <div id="centerpoint-location" class="centerpoint-location">Calculating...</div>
+                <div id="centerpoint-coords" class="centerpoint-coords"></div>
+                
+                <div class="centerpoint-stats">
+                    <div class="cp-stat">
+                        <div id="cp-distance-from-home" class="cp-stat-value">--</div>
+                        <div class="cp-stat-label">From Home (MD)</div>
+                    </div>
+                    <div class="cp-stat">
+                        <div id="cp-locations-count" class="cp-stat-value">--</div>
+                        <div class="cp-stat-label">Locations</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <div class="bottom-nav">
@@ -813,6 +946,10 @@
         <button class="nav-btn" data-page="stats">
             <span class="nav-icon">📊</span>
             <span>Stats</span>
+        </button>
+        <button class="nav-btn" data-page="map">
+            <span class="nav-icon">🗺️</span>
+            <span>Map</span>
         </button>
         <button class="nav-btn" data-page="history">
             <span class="nav-icon">📜</span>
@@ -902,6 +1039,100 @@
             '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'
         ];
         
+        // Location coordinates (approximate centers)
+        const LOCATION_COORDS = {
+            // US States
+            'Alabama': [32.806671, -86.791130],
+            'Alaska': [61.370716, -152.404419],
+            'Arizona': [33.729759, -111.431221],
+            'Arkansas': [34.969704, -92.373123],
+            'California': [36.116203, -119.681564],
+            'Colorado': [39.059811, -105.311104],
+            'Connecticut': [41.597782, -72.755371],
+            'Delaware': [39.318523, -75.507141],
+            'Florida': [27.766279, -81.686783],
+            'Georgia': [33.040619, -83.643074],
+            'Hawaii': [21.094318, -157.498337],
+            'Idaho': [44.240459, -114.478828],
+            'Illinois': [40.349457, -88.986137],
+            'Indiana': [39.849426, -86.258278],
+            'Iowa': [42.011539, -93.210526],
+            'Kansas': [38.526600, -96.726486],
+            'Kentucky': [37.668140, -84.670067],
+            'Louisiana': [31.169546, -91.867805],
+            'Maine': [44.693947, -69.381927],
+            'Maryland': [39.063946, -76.802101],
+            'Massachusetts': [42.230171, -71.530106],
+            'Michigan': [43.326618, -84.536095],
+            'Minnesota': [45.694454, -93.900192],
+            'Mississippi': [32.741646, -89.678696],
+            'Missouri': [38.456085, -92.288368],
+            'Montana': [46.921925, -110.454353],
+            'Nebraska': [41.125370, -98.268082],
+            'Nevada': [38.313515, -117.055374],
+            'New Hampshire': [43.452492, -71.563896],
+            'New Jersey': [40.298904, -74.521011],
+            'New Mexico': [34.840515, -106.248482],
+            'New York': [42.165726, -74.948051],
+            'North Carolina': [35.630066, -79.806419],
+            'North Dakota': [47.528912, -99.784012],
+            'Ohio': [40.388783, -82.764915],
+            'Oklahoma': [35.565342, -96.928917],
+            'Oregon': [44.572021, -122.070938],
+            'Pennsylvania': [40.590752, -77.209755],
+            'Rhode Island': [41.680893, -71.511780],
+            'South Carolina': [33.856892, -80.945007],
+            'South Dakota': [44.299782, -99.438828],
+            'Tennessee': [35.747845, -86.692345],
+            'Texas': [31.054487, -97.563461],
+            'Utah': [40.150032, -111.862434],
+            'Vermont': [44.045876, -72.710686],
+            'Virginia': [37.769337, -78.169968],
+            'Washington': [47.400902, -121.490494],
+            'West Virginia': [38.491226, -80.954453],
+            'Wisconsin': [44.268543, -89.616508],
+            'Wyoming': [42.755966, -107.302490],
+            'Washington DC': [38.907192, -77.036873],
+            // US Territories
+            'Puerto Rico': [18.220833, -66.590149],
+            'Guam': [13.444304, 144.793731],
+            'US Virgin Islands': [18.335765, -64.896335],
+            // Countries
+            'Aruba': [12.52111, -69.968338],
+            'Australia': [-25.274398, 133.775136],
+            'Canada': [56.130366, -106.346771],
+            'Costa Rica': [9.748917, -83.753428],
+            'England': [52.355518, -1.174320],
+            'France': [46.227638, 2.213749],
+            'Germany': [51.165691, 10.451526],
+            'Guatemala': [15.783471, -90.230759],
+            'Italy': [41.871940, 12.567380],
+            'Mexico': [23.634501, -102.552784],
+            'Monaco': [43.738417, 7.424615],
+            'Spain': [40.463667, -3.749220],
+            'Switzerland': [46.818188, 8.227512],
+            'The Bahamas': [25.03428, -77.39628],
+            'Vatican City': [41.902916, 12.453389],
+            'United Kingdom': [55.378051, -3.435973],
+            'Netherlands': [52.132633, 5.291266],
+            'Belgium': [50.503887, 4.469936],
+            'Austria': [47.516231, 14.550072],
+            'New Zealand': [-40.900557, 174.885971],
+            'Japan': [36.204824, 138.252924],
+            'Ireland': [53.142367, -7.692054],
+            'Scotland': [56.490671, -4.202646],
+            'Greece': [39.074208, 21.824312],
+            'Portugal': [39.399872, -8.224454],
+            'Iceland': [64.963051, -19.020835],
+            'Norway': [60.472024, 8.468946],
+            'Sweden': [60.128161, 18.643501],
+            'Denmark': [56.26392, 9.501785],
+            'Croatia': [45.1, 15.2]
+        };
+        
+        // Home location for distance calculation
+        const HOME_COORDS = [39.063946, -76.802101]; // Maryland
+        
         // ============================================
         // HELPER: Check if location is a flight (handles both "Flight" and "Flights")
         // ============================================
@@ -926,6 +1157,8 @@
         let locationColorMap = {};
         let allTimeRankedLocations = [];
         let showAllLocations = false;
+        let leafletMap = null;
+        let centerpointMarker = null;
         
         const BIRTH_DATE = new Date('1996-11-04T07:31:00-05:00');
         
@@ -962,6 +1195,7 @@
             initRefresh();
             initStatsControls();
             initDateInputs();
+            initMapControls();
             fetchData();
             setInterval(fetchData, 30000);
         });
@@ -1427,6 +1661,7 @@
                     
                     if (page === 'stats') loadStats();
                     if (page === 'history') loadHistory();
+                    if (page === 'map') loadMap();
                 });
             });
         }
@@ -2044,6 +2279,250 @@
                     ${entry.trip_description ? `<div class="history-trip">${entry.trip_description}</div>` : ''}
                 </div>`;
             }).join('');
+        }
+        
+        // ============================================
+        // MAP PAGE
+        // ============================================
+        function initMapControls() {
+            const timeRange = document.getElementById('map-time-range');
+            const yearGroup = document.getElementById('map-year-group');
+            const yearSelect = document.getElementById('map-year-select');
+            const dateControls = document.getElementById('map-date-controls');
+            const dateFrom = document.getElementById('map-date-from');
+            const dateTo = document.getElementById('map-date-to');
+            
+            timeRange.addEventListener('change', () => {
+                yearGroup.style.display = timeRange.value === 'year' ? 'block' : 'none';
+                dateControls.classList.toggle('show', timeRange.value === 'custom');
+                updateCenterpoint();
+            });
+            
+            yearSelect.addEventListener('change', updateCenterpoint);
+            
+            // Date input formatting
+            [dateFrom, dateTo].forEach(input => {
+                input.addEventListener('input', (e) => {
+                    if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') return;
+                    let value = input.value.replace(/\D/g, '');
+                    if (value.length > 8) value = value.slice(0, 8);
+                    if (value.length >= 4) value = value.slice(0, 2) + '/' + value.slice(2, 4) + '/' + value.slice(4);
+                    else if (value.length >= 2) value = value.slice(0, 2) + '/' + value.slice(2);
+                    input.value = value;
+                });
+                
+                input.addEventListener('blur', updateCenterpoint);
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') updateCenterpoint();
+                });
+            });
+        }
+        
+        function loadMap() {
+            if (entries.length === 0) return;
+            
+            // Populate year selector
+            const years = [...new Set(entries.map(e => new Date(e.timestamp).getFullYear()))].sort((a, b) => b - a);
+            const yearSelect = document.getElementById('map-year-select');
+            yearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+            
+            // Initialize map if not already
+            if (!leafletMap) {
+                leafletMap = L.map('map-container').setView([39.8283, -98.5795], 4);
+                
+                // Dark map tiles
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                    subdomains: 'abcd',
+                    maxZoom: 19
+                }).addTo(leafletMap);
+            }
+            
+            // Small delay to ensure container is visible
+            setTimeout(() => {
+                leafletMap.invalidateSize();
+                updateCenterpoint();
+            }, 100);
+        }
+        
+        function getMapDateRange() {
+            const timeRange = document.getElementById('map-time-range').value;
+            let startDate, endDate;
+            
+            if (timeRange === 'all') {
+                startDate = new Date(entries[0].timestamp);
+                endDate = getAccurateNow();
+            } else if (timeRange === 'year') {
+                const year = parseInt(document.getElementById('map-year-select').value);
+                startDate = new Date(year, 0, 1);
+                endDate = new Date(year + 1, 0, 1);
+            } else if (timeRange === 'custom') {
+                const fromVal = document.getElementById('map-date-from').value;
+                const toVal = document.getElementById('map-date-to').value;
+                
+                // Parse MM/DD/YYYY
+                const parseDate = (str) => {
+                    const parts = str.split('/');
+                    if (parts.length === 3) {
+                        return new Date(parts[2], parts[0] - 1, parts[1]);
+                    }
+                    return null;
+                };
+                
+                startDate = parseDate(fromVal) || new Date(entries[0].timestamp);
+                endDate = parseDate(toVal) || getAccurateNow();
+            }
+            
+            return { startDate, endDate };
+        }
+        
+        function calculateCenterpoint(startDate, endDate) {
+            const totals = calculateLocationTotals(startDate, endDate);
+            
+            let totalWeightedLat = 0;
+            let totalWeightedLng = 0;
+            let totalTime = 0;
+            let locationCount = 0;
+            
+            for (const [location, seconds] of Object.entries(totals)) {
+                // Skip flights - they don't have a fixed location
+                if (isFlight(location)) continue;
+                
+                const coords = LOCATION_COORDS[location];
+                if (!coords) {
+                    console.warn(`No coordinates for: ${location}`);
+                    continue;
+                }
+                
+                totalWeightedLat += coords[0] * seconds;
+                totalWeightedLng += coords[1] * seconds;
+                totalTime += seconds;
+                locationCount++;
+            }
+            
+            if (totalTime === 0) return null;
+            
+            return {
+                lat: totalWeightedLat / totalTime,
+                lng: totalWeightedLng / totalTime,
+                totalDays: totalTime / 86400,
+                locationCount: locationCount
+            };
+        }
+        
+        function getDistanceKm(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+        
+        function getNearestCity(lat, lng) {
+            // Simple lookup of major US cities for reference
+            const cities = [
+                { name: 'New York, NY', lat: 40.7128, lng: -74.0060 },
+                { name: 'Los Angeles, CA', lat: 34.0522, lng: -118.2437 },
+                { name: 'Chicago, IL', lat: 41.8781, lng: -87.6298 },
+                { name: 'Houston, TX', lat: 29.7604, lng: -95.3698 },
+                { name: 'Phoenix, AZ', lat: 33.4484, lng: -112.0740 },
+                { name: 'Philadelphia, PA', lat: 39.9526, lng: -75.1652 },
+                { name: 'San Antonio, TX', lat: 29.4241, lng: -98.4936 },
+                { name: 'San Diego, CA', lat: 32.7157, lng: -117.1611 },
+                { name: 'Dallas, TX', lat: 32.7767, lng: -96.7970 },
+                { name: 'San Francisco, CA', lat: 37.7749, lng: -122.4194 },
+                { name: 'Austin, TX', lat: 30.2672, lng: -97.7431 },
+                { name: 'Seattle, WA', lat: 47.6062, lng: -122.3321 },
+                { name: 'Denver, CO', lat: 39.7392, lng: -104.9903 },
+                { name: 'Washington, DC', lat: 38.9072, lng: -77.0369 },
+                { name: 'Boston, MA', lat: 42.3601, lng: -71.0589 },
+                { name: 'Nashville, TN', lat: 36.1627, lng: -86.7816 },
+                { name: 'Baltimore, MD', lat: 39.2904, lng: -76.6122 },
+                { name: 'Atlanta, GA', lat: 33.7490, lng: -84.3880 },
+                { name: 'Miami, FL', lat: 25.7617, lng: -80.1918 },
+                { name: 'Pittsburgh, PA', lat: 40.4406, lng: -79.9959 },
+                { name: 'Cincinnati, OH', lat: 39.1031, lng: -84.5120 },
+                { name: 'Kansas City, MO', lat: 39.0997, lng: -94.5786 },
+                { name: 'Columbus, OH', lat: 39.9612, lng: -82.9988 },
+                { name: 'Indianapolis, IN', lat: 39.7684, lng: -86.1581 },
+                { name: 'Charlotte, NC', lat: 35.2271, lng: -80.8431 },
+                { name: 'St. Louis, MO', lat: 38.6270, lng: -90.1994 },
+                { name: 'Cleveland, OH', lat: 41.4993, lng: -81.6944 },
+                { name: 'Minneapolis, MN', lat: 44.9778, lng: -93.2650 },
+                { name: 'Richmond, VA', lat: 37.5407, lng: -77.4360 },
+                { name: 'Raleigh, NC', lat: 35.7796, lng: -78.6382 }
+            ];
+            
+            let nearest = cities[0];
+            let minDist = getDistanceKm(lat, lng, cities[0].lat, cities[0].lng);
+            
+            for (const city of cities) {
+                const dist = getDistanceKm(lat, lng, city.lat, city.lng);
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearest = city;
+                }
+            }
+            
+            return { city: nearest.name, distance: minDist };
+        }
+        
+        function updateCenterpoint() {
+            if (!leafletMap || entries.length === 0) return;
+            
+            const { startDate, endDate } = getMapDateRange();
+            const centerpoint = calculateCenterpoint(startDate, endDate);
+            
+            if (!centerpoint) {
+                document.getElementById('centerpoint-location').textContent = 'No data';
+                return;
+            }
+            
+            // Update marker
+            if (centerpointMarker) {
+                leafletMap.removeLayer(centerpointMarker);
+            }
+            
+            // Custom icon for centerpoint
+            const centerpointIcon = L.divIcon({
+                className: 'centerpoint-icon',
+                html: `<div style="
+                    width: 20px;
+                    height: 20px;
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    border: 3px solid #fff;
+                    border-radius: 50%;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                "></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+            
+            centerpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { icon: centerpointIcon })
+                .addTo(leafletMap);
+            
+            // Pan to centerpoint
+            leafletMap.setView([centerpoint.lat, centerpoint.lng], 5);
+            
+            // Get nearest city
+            const nearest = getNearestCity(centerpoint.lat, centerpoint.lng);
+            
+            // Calculate distance from home (Maryland)
+            const distFromHome = getDistanceKm(centerpoint.lat, centerpoint.lng, HOME_COORDS[0], HOME_COORDS[1]);
+            const distFromHomeMiles = (distFromHome * 0.621371).toFixed(0);
+            
+            // Update UI
+            document.getElementById('centerpoint-location').textContent = 
+                `${nearest.distance.toFixed(0)} mi from ${nearest.city}`;
+            document.getElementById('centerpoint-coords').textContent = 
+                `${centerpoint.lat.toFixed(4)}°, ${centerpoint.lng.toFixed(4)}°`;
+            document.getElementById('cp-distance-from-home').textContent = 
+                `${distFromHomeMiles} mi`;
+            document.getElementById('cp-locations-count').textContent = 
+                centerpoint.locationCount;
         }
     </script>
 </body>
