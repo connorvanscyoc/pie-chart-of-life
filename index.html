@@ -47,10 +47,27 @@
             font-size: 0.75rem;
             color: #666;
             margin-top: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
         .sync-status.online { color: #6bcb77; }
         .sync-status.offline { color: #ffd93d; }
         .sync-status.error { color: #e94560; }
+        
+        .refresh-btn {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .refresh-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
         
         .current-card {
             background: rgba(255, 255, 255, 0.08);
@@ -74,11 +91,59 @@
             margin-bottom: 5px;
         }
         
+        .current-trip-container {
+            margin-bottom: 15px;
+        }
+        
         .current-trip {
             font-size: 0.95rem;
             color: #a0a0a0;
-            margin-bottom: 15px;
             font-style: italic;
+            cursor: pointer;
+            padding: 5px 0;
+        }
+        
+        .current-trip:hover {
+            color: #667eea;
+        }
+        
+        .current-trip-edit {
+            display: none;
+        }
+        
+        .current-trip-edit.show {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .trip-edit-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #fff;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        
+        .trip-edit-input:focus {
+            border-color: #667eea;
+        }
+        
+        .trip-edit-btn {
+            background: #667eea;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #fff;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        
+        .trip-edit-cancel {
+            background: rgba(255,255,255,0.1);
         }
         
         .timer {
@@ -283,7 +348,6 @@
             color: #666;
         }
         
-        /* Modal Styles */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -395,13 +459,25 @@
         <div id="page-home" class="page active">
             <header>
                 <h1>🥧 Pie Chart of Life</h1>
-                <div id="sync-status" class="sync-status">Connecting...</div>
+                <div id="sync-status" class="sync-status">
+                    <span id="sync-text">Connecting...</span>
+                    <button class="refresh-btn" id="refresh-btn" title="Refresh">🔄</button>
+                </div>
             </header>
             
             <div class="current-card">
                 <div class="current-label">Currently In</div>
                 <div id="current-location" class="current-location">Loading...</div>
-                <div id="current-trip" class="current-trip"></div>
+                
+                <div class="current-trip-container">
+                    <div id="current-trip" class="current-trip" title="Click to edit"></div>
+                    <div id="current-trip-edit" class="current-trip-edit">
+                        <input type="text" class="trip-edit-input" id="trip-edit-input" placeholder="Trip description...">
+                        <button class="trip-edit-btn" id="trip-save-btn">Save</button>
+                        <button class="trip-edit-btn trip-edit-cancel" id="trip-cancel-btn">✕</button>
+                    </div>
+                </div>
+                
                 <div id="timer" class="timer">--:--:--</div>
                 <div class="timer-label">time in current location</div>
             </div>
@@ -457,7 +533,7 @@
         </button>
     </div>
     
-    <!-- Confirmation Modal with Trip Description -->
+    <!-- Confirmation Modal -->
     <div class="modal-overlay" id="modal">
         <div class="modal">
             <h3 id="modal-title">📍 New Location</h3>
@@ -516,11 +592,12 @@
         // STATE
         // ============================================
         let entries = [];
-        let currentLocation = null;
+        let currentEntry = null;
         let currentStartTime = null;
         let timerInterval = null;
         let pendingLocation = null;
         let offlineQueue = [];
+        let timeOffset = 0; // Difference between server time and device time (in ms)
         
         // ============================================
         // INITIALIZATION
@@ -532,10 +609,21 @@
             initNavigation();
             initModal();
             initGPS();
+            initTripEdit();
+            initRefresh();
             fetchData();
             
-            setInterval(fetchData, 60000);
+            // Refresh every 30 seconds
+            setInterval(fetchData, 30000);
         });
+        
+        // ============================================
+        // GET ACCURATE TIME
+        // ============================================
+        function getAccurateNow() {
+            // Returns the current time corrected for device clock drift
+            return new Date(Date.now() + timeOffset);
+        }
         
         // ============================================
         // DATA FETCHING
@@ -553,6 +641,15 @@
                     entries = result.data.sort((a, b) => 
                         new Date(a.timestamp) - new Date(b.timestamp)
                     );
+                    
+                    // Calculate time offset from server
+                    if (result.serverTime) {
+                        const serverTime = new Date(result.serverTime).getTime();
+                        const deviceTime = Date.now();
+                        timeOffset = serverTime - deviceTime;
+                        console.log(`Time offset: ${timeOffset}ms (${(timeOffset/1000).toFixed(1)}s)`);
+                    }
+                    
                     updateCurrentLocation();
                     updateSyncStatus('online');
                 } else {
@@ -570,6 +667,15 @@
             }
             
             localStorage.setItem('pie_chart_entries', JSON.stringify(entries));
+        }
+        
+        // ============================================
+        // REFRESH BUTTON
+        // ============================================
+        function initRefresh() {
+            document.getElementById('refresh-btn').addEventListener('click', () => {
+                fetchData();
+            });
         }
         
         // ============================================
@@ -635,12 +741,12 @@
             
             try {
                 updateSyncStatus('syncing');
-                await sendEntry(entryData);
+                const result = await sendEntry(entryData);
+                currentEntry = result.entry;
                 updateCurrentLocation();
                 updateSyncStatus('online');
             } catch (error) {
                 console.error('Failed to send, queuing offline:', error);
-                // For offline, we need a timestamp - use device time as fallback
                 entryData.timestamp = new Date().toISOString();
                 offlineQueue.push(entryData);
                 saveOfflineQueue();
@@ -653,31 +759,112 @@
         }
         
         // ============================================
+        // UPDATE TRIP DESCRIPTION
+        // ============================================
+        async function updateTripDescription(row, tripDescription) {
+            try {
+                const url = `${SCRIPT_URL}?action=update&row=${row}&trip_description=${encodeURIComponent(tripDescription)}`;
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Update local entry
+                    const entry = entries.find(e => e.row === row);
+                    if (entry) {
+                        entry.trip_description = tripDescription;
+                        localStorage.setItem('pie_chart_entries', JSON.stringify(entries));
+                    }
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error('Failed to update trip description:', error);
+                return false;
+            }
+        }
+        
+        // ============================================
+        // TRIP EDIT UI
+        // ============================================
+        function initTripEdit() {
+            const tripDisplay = document.getElementById('current-trip');
+            const tripEdit = document.getElementById('current-trip-edit');
+            const tripInput = document.getElementById('trip-edit-input');
+            const saveBtn = document.getElementById('trip-save-btn');
+            const cancelBtn = document.getElementById('trip-cancel-btn');
+            
+            // Click to edit
+            tripDisplay.addEventListener('click', () => {
+                if (!currentEntry) return;
+                tripInput.value = currentEntry.trip_description || '';
+                tripDisplay.style.display = 'none';
+                tripEdit.classList.add('show');
+                tripInput.focus();
+            });
+            
+            // Save
+            saveBtn.addEventListener('click', async () => {
+                if (!currentEntry || !currentEntry.row) return;
+                
+                const newTrip = tripInput.value.trim();
+                saveBtn.textContent = '...';
+                
+                const success = await updateTripDescription(currentEntry.row, newTrip);
+                
+                if (success) {
+                    currentEntry.trip_description = newTrip;
+                    updateTripDisplay();
+                }
+                
+                saveBtn.textContent = 'Save';
+                tripEdit.classList.remove('show');
+                tripDisplay.style.display = 'block';
+            });
+            
+            // Cancel
+            cancelBtn.addEventListener('click', () => {
+                tripEdit.classList.remove('show');
+                tripDisplay.style.display = 'block';
+            });
+            
+            // Enter to save
+            tripInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    saveBtn.click();
+                }
+            });
+        }
+        
+        function updateTripDisplay() {
+            const tripEl = document.getElementById('current-trip');
+            if (currentEntry && currentEntry.trip_description) {
+                tripEl.textContent = currentEntry.trip_description;
+                tripEl.style.display = 'block';
+            } else {
+                tripEl.textContent = '+ Add trip description';
+                tripEl.style.display = 'block';
+            }
+        }
+        
+        // ============================================
         // UI UPDATES
         // ============================================
         function updateCurrentLocation() {
             if (entries.length === 0) {
                 document.getElementById('current-location').textContent = 'No entries yet';
                 document.getElementById('timer').textContent = '--:--:--';
+                document.getElementById('current-trip').style.display = 'none';
                 return;
             }
             
-            const latest = entries[entries.length - 1];
-            currentLocation = latest.location;
-            currentStartTime = new Date(latest.timestamp);
+            currentEntry = entries[entries.length - 1];
+            currentStartTime = new Date(currentEntry.timestamp);
             
-            document.getElementById('current-location').textContent = currentLocation;
-            
-            const tripEl = document.getElementById('current-trip');
-            if (latest.trip_description) {
-                tripEl.textContent = latest.trip_description;
-                tripEl.style.display = 'block';
-            } else {
-                tripEl.style.display = 'none';
-            }
+            document.getElementById('current-location').textContent = currentEntry.location;
+            updateTripDisplay();
             
             document.querySelectorAll('.quick-btn').forEach(btn => {
-                btn.classList.toggle('current', btn.dataset.location === currentLocation);
+                btn.classList.toggle('current', btn.dataset.location === currentEntry.location);
             });
             
             updateTimer();
@@ -688,8 +875,13 @@
         function updateTimer() {
             if (!currentStartTime) return;
             
-            const now = new Date();
+            const now = getAccurateNow(); // Use corrected time
             const diff = Math.floor((now - currentStartTime) / 1000);
+            
+            if (diff < 0) {
+                document.getElementById('timer').textContent = '00:00:00';
+                return;
+            }
             
             const days = Math.floor(diff / 86400);
             const hours = Math.floor((diff % 86400) / 3600);
@@ -707,8 +899,9 @@
         }
         
         function updateSyncStatus(status) {
-            const el = document.getElementById('sync-status');
-            el.className = 'sync-status ' + status;
+            const el = document.getElementById('sync-text');
+            const container = document.getElementById('sync-status');
+            container.className = 'sync-status ' + status;
             
             const queueCount = offlineQueue.length;
             
@@ -786,7 +979,6 @@
             document.getElementById('modal-cancel').addEventListener('click', hideModal);
             document.getElementById('modal-confirm').addEventListener('click', confirmLocation);
             
-            // Allow Enter key to submit
             document.getElementById('modal-trip-input').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     confirmLocation();
@@ -795,7 +987,7 @@
         }
         
         function showConfirmation(location) {
-            if (location === currentLocation) {
+            if (currentEntry && location === currentEntry.location) {
                 return;
             }
             
@@ -804,7 +996,6 @@
             document.getElementById('modal-trip-input').value = '';
             document.getElementById('modal').classList.add('show');
             
-            // Focus the input for quick typing
             setTimeout(() => {
                 document.getElementById('modal-trip-input').focus();
             }, 100);
@@ -916,7 +1107,7 @@
                 const start = new Date(entry.timestamp);
                 const end = i < entries.length - 1 
                     ? new Date(entries[i + 1].timestamp)
-                    : new Date();
+                    : getAccurateNow();
                 
                 const duration = (end - start) / 1000;
                 
@@ -1000,7 +1191,7 @@
                 const start = new Date(entry.timestamp);
                 const end = actualIndex < entries.length - 1
                     ? new Date(entries[actualIndex + 1].timestamp)
-                    : new Date();
+                    : getAccurateNow();
                 
                 const seconds = (end - start) / 1000;
                 const days = Math.floor(seconds / 86400);
