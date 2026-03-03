@@ -30,7 +30,6 @@
             margin: 0 auto;
         }
         
-        /* Header */
         header {
             text-align: center;
             margin-bottom: 30px;
@@ -53,7 +52,6 @@
         .sync-status.offline { color: #ffd93d; }
         .sync-status.error { color: #e94560; }
         
-        /* Current Location Card */
         .current-card {
             background: rgba(255, 255, 255, 0.08);
             border-radius: 20px;
@@ -99,7 +97,6 @@
             margin-top: 5px;
         }
         
-        /* Quick Actions */
         .section-title {
             font-size: 0.9rem;
             color: #888;
@@ -137,7 +134,6 @@
             border-color: #6bcb77;
         }
         
-        /* Search / Other Location */
         .search-container {
             margin-bottom: 25px;
         }
@@ -179,43 +175,6 @@
             background: rgba(255, 255, 255, 0.08);
         }
         
-        /* Trip Description Input */
-        .trip-input-container {
-            margin-bottom: 25px;
-            display: none;
-        }
-        
-        .trip-input-container.show {
-            display: block;
-        }
-        
-        .trip-input {
-            width: 100%;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 15px;
-            color: #fff;
-            font-size: 1rem;
-            outline: none;
-            margin-bottom: 10px;
-        }
-        
-        .trip-input::placeholder {
-            color: #666;
-        }
-        
-        .trip-btn {
-            background: #667eea;
-            border: none;
-            border-radius: 8px;
-            padding: 10px 20px;
-            color: #fff;
-            font-size: 0.9rem;
-            cursor: pointer;
-        }
-        
-        /* Bottom Navigation */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -250,7 +209,6 @@
             font-size: 1.5rem;
         }
         
-        /* Pages */
         .page {
             display: none;
         }
@@ -259,7 +217,6 @@
             display: block;
         }
         
-        /* Stats Page */
         .stat-card {
             background: rgba(255, 255, 255, 0.06);
             border-radius: 16px;
@@ -289,7 +246,6 @@
             color: #6bcb77;
         }
         
-        /* History Page */
         .history-item {
             background: rgba(255, 255, 255, 0.04);
             border-radius: 12px;
@@ -321,14 +277,13 @@
             margin-top: 5px;
         }
         
-        /* Loading */
         .loading {
             text-align: center;
             padding: 40px;
             color: #666;
         }
         
-        /* Confirmation Modal */
+        /* Modal Styles */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -336,7 +291,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             z-index: 100;
             align-items: center;
             justify-content: center;
@@ -357,11 +312,33 @@
         }
         
         .modal h3 {
-            margin-bottom: 10px;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
         }
         
-        .modal p {
-            color: #888;
+        .modal-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            color: #fff;
+            font-size: 1rem;
+            outline: none;
+            margin-bottom: 15px;
+        }
+        
+        .modal-input::placeholder {
+            color: #666;
+        }
+        
+        .modal-input:focus {
+            border-color: #667eea;
+        }
+        
+        .modal-hint {
+            font-size: 0.85rem;
+            color: #666;
             margin-bottom: 20px;
         }
         
@@ -372,11 +349,12 @@
         
         .modal-btn {
             flex: 1;
-            padding: 12px;
-            border-radius: 10px;
+            padding: 14px;
+            border-radius: 12px;
             border: none;
             font-size: 1rem;
             cursor: pointer;
+            font-weight: 500;
         }
         
         .modal-btn.cancel {
@@ -385,11 +363,10 @@
         }
         
         .modal-btn.confirm {
-            background: #667eea;
+            background: linear-gradient(90deg, #667eea, #764ba2);
             color: #fff;
         }
         
-        /* GPS Button */
         .gps-btn {
             background: rgba(102, 126, 234, 0.2);
             border: 1px solid #667eea;
@@ -434,20 +411,12 @@
             </button>
             
             <div class="section-title">Quick Entry</div>
-            <div class="quick-locations" id="quick-locations">
-                <!-- Populated by JS -->
-            </div>
+            <div class="quick-locations" id="quick-locations"></div>
             
             <div class="section-title">Other Location</div>
             <div class="search-container">
                 <input type="text" class="search-input" id="search-input" placeholder="Search states or countries...">
                 <div class="search-results" id="search-results"></div>
-            </div>
-            
-            <div class="trip-input-container" id="trip-input-container">
-                <div class="section-title">Trip Description (Optional)</div>
-                <input type="text" class="trip-input" id="trip-input" placeholder="e.g., Beach vacation, Work trip...">
-                <button class="trip-btn" id="save-trip-btn">Update Trip Description</button>
             </div>
         </div>
         
@@ -456,7 +425,6 @@
             <header>
                 <h1>📊 Stats</h1>
             </header>
-            
             <div id="stats-content">
                 <div class="loading">Loading stats...</div>
             </div>
@@ -467,7 +435,6 @@
             <header>
                 <h1>📜 History</h1>
             </header>
-            
             <div id="history-content">
                 <div class="loading">Loading history...</div>
             </div>
@@ -490,14 +457,15 @@
         </button>
     </div>
     
-    <!-- Confirmation Modal -->
+    <!-- Confirmation Modal with Trip Description -->
     <div class="modal-overlay" id="modal">
         <div class="modal">
-            <h3 id="modal-title">Confirm Location</h3>
-            <p id="modal-message">Switch to this location?</p>
+            <h3 id="modal-title">📍 New Location</h3>
+            <input type="text" class="modal-input" id="modal-trip-input" placeholder="Trip description (optional)">
+            <div class="modal-hint">e.g., "Beach vacation", "Work trip", "Visiting family"</div>
             <div class="modal-buttons">
                 <button class="modal-btn cancel" id="modal-cancel">Cancel</button>
-                <button class="modal-btn confirm" id="modal-confirm">Confirm</button>
+                <button class="modal-btn confirm" id="modal-confirm">Log Entry</button>
             </div>
         </div>
     </div>
@@ -508,7 +476,6 @@
         // ============================================
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxT_9e0KgXVQuMVcxuQcbFESCfbidCMpgrmnQXfI4JNnZwQorZXAcy-D8Vcqw5mgKAy/exec';
         
-        // Your most frequent locations (customize this!)
         const QUICK_LOCATIONS = [
             'Washington DC',
             'Maryland',
@@ -521,9 +488,7 @@
             'Mexico'
         ];
         
-        // All US states and common countries
         const ALL_LOCATIONS = [
-            // US States
             'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado',
             'Connecticut', 'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho',
             'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana',
@@ -534,9 +499,7 @@
             'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
             'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington',
             'West Virginia', 'Wisconsin', 'Wyoming', 'Washington DC',
-            // Special
             'Flight',
-            // Countries
             'Canada', 'Mexico', 'United Kingdom', 'England', 'France', 'Germany',
             'Italy', 'Spain', 'Portugal', 'Netherlands', 'Belgium', 'Switzerland',
             'Austria', 'Australia', 'New Zealand', 'Japan', 'South Korea', 'China',
@@ -569,10 +532,8 @@
             initNavigation();
             initModal();
             initGPS();
-            initTripDescription();
             fetchData();
             
-            // Refresh data periodically
             setInterval(fetchData, 60000);
         });
         
@@ -583,7 +544,6 @@
             updateSyncStatus('syncing');
             
             try {
-                // First, sync any offline entries
                 await syncOfflineQueue();
                 
                 const response = await fetch(SCRIPT_URL);
@@ -602,7 +562,6 @@
                 console.error('Fetch error:', error);
                 updateSyncStatus('offline');
                 
-                // Try to load from local storage
                 const cached = localStorage.getItem('pie_chart_entries');
                 if (cached) {
                     entries = JSON.parse(cached);
@@ -610,7 +569,6 @@
                 }
             }
             
-            // Cache data locally
             localStorage.setItem('pie_chart_entries', JSON.stringify(entries));
         }
         
@@ -670,7 +628,6 @@
         
         async function logLocation(location, tripDescription = '') {
             const entryData = {
-                timestamp: new Date().toISOString(),
                 location: location,
                 trip_description: tripDescription,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -683,10 +640,11 @@
                 updateSyncStatus('online');
             } catch (error) {
                 console.error('Failed to send, queuing offline:', error);
+                // For offline, we need a timestamp - use device time as fallback
+                entryData.timestamp = new Date().toISOString();
                 offlineQueue.push(entryData);
                 saveOfflineQueue();
                 
-                // Still update locally
                 entries.push(entryData);
                 localStorage.setItem('pie_chart_entries', JSON.stringify(entries));
                 updateCurrentLocation();
@@ -718,19 +676,13 @@
                 tripEl.style.display = 'none';
             }
             
-            // Update quick buttons to show current
             document.querySelectorAll('.quick-btn').forEach(btn => {
                 btn.classList.toggle('current', btn.dataset.location === currentLocation);
             });
             
-            // Start timer
             updateTimer();
             if (timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(updateTimer, 1000);
-            
-            // Show trip input
-            document.getElementById('trip-input-container').classList.add('show');
-            document.getElementById('trip-input').value = latest.trip_description || '';
         }
         
         function updateTimer() {
@@ -833,19 +785,29 @@
         function initModal() {
             document.getElementById('modal-cancel').addEventListener('click', hideModal);
             document.getElementById('modal-confirm').addEventListener('click', confirmLocation);
+            
+            // Allow Enter key to submit
+            document.getElementById('modal-trip-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    confirmLocation();
+                }
+            });
         }
         
         function showConfirmation(location) {
             if (location === currentLocation) {
-                // Already here, no need to log
                 return;
             }
             
             pendingLocation = location;
-            document.getElementById('modal-title').textContent = `Switch to ${location}?`;
-            document.getElementById('modal-message').textContent = 
-                `This will end your time in ${currentLocation || 'current location'} and start tracking ${location}.`;
+            document.getElementById('modal-title').textContent = `📍 ${location}`;
+            document.getElementById('modal-trip-input').value = '';
             document.getElementById('modal').classList.add('show');
+            
+            // Focus the input for quick typing
+            setTimeout(() => {
+                document.getElementById('modal-trip-input').focus();
+            }, 100);
         }
         
         function hideModal() {
@@ -855,7 +817,8 @@
         
         function confirmLocation() {
             if (pendingLocation) {
-                logLocation(pendingLocation);
+                const tripDescription = document.getElementById('modal-trip-input').value.trim();
+                logLocation(pendingLocation, tripDescription);
                 hideModal();
             }
         }
@@ -880,7 +843,6 @@
                     
                     const { latitude, longitude } = position.coords;
                     
-                    // Use reverse geocoding to get location name
                     const response = await fetch(
                         `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
                     );
@@ -888,11 +850,9 @@
                     
                     let detectedLocation = null;
                     
-                    // Try to get state (US) or country
                     if (data.address) {
                         if (data.address.state && data.address.country_code === 'us') {
                             detectedLocation = data.address.state;
-                            // Handle DC specially
                             if (detectedLocation === 'District of Columbia') {
                                 detectedLocation = 'Washington DC';
                             }
@@ -918,41 +878,6 @@
         }
         
         // ============================================
-        // TRIP DESCRIPTION
-        // ============================================
-        function initTripDescription() {
-            const btn = document.getElementById('save-trip-btn');
-            const input = document.getElementById('trip-input');
-            
-            btn.addEventListener('click', async () => {
-                if (entries.length === 0) return;
-                
-                const latest = entries[entries.length - 1];
-                latest.trip_description = input.value;
-                
-                // Update locally
-                localStorage.setItem('pie_chart_entries', JSON.stringify(entries));
-                
-                // Update UI
-                const tripEl = document.getElementById('current-trip');
-                if (input.value) {
-                    tripEl.textContent = input.value;
-                    tripEl.style.display = 'block';
-                } else {
-                    tripEl.style.display = 'none';
-                }
-                
-                btn.textContent = 'Saved!';
-                setTimeout(() => {
-                    btn.textContent = 'Update Trip Description';
-                }, 1500);
-                
-                // Note: To actually update the Google Sheet, we'd need an update endpoint
-                // For now, trip descriptions for existing entries are stored locally
-            });
-        }
-        
-        // ============================================
         // NAVIGATION
         // ============================================
         function initNavigation() {
@@ -960,15 +885,12 @@
                 btn.addEventListener('click', () => {
                     const page = btn.dataset.page;
                     
-                    // Update nav buttons
                     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                     
-                    // Update pages
                     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
                     document.getElementById(`page-${page}`).classList.add('active');
                     
-                    // Load page content
                     if (page === 'stats') loadStats();
                     if (page === 'history') loadHistory();
                 });
@@ -986,7 +908,6 @@
                 return;
             }
             
-            // Calculate stats
             const locationTotals = {};
             let totalSeconds = 0;
             
@@ -1006,12 +927,10 @@
                 totalSeconds += duration;
             }
             
-            // Sort by total time
             const sorted = Object.entries(locationTotals)
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 10);
             
-            // Format duration
             function formatDuration(seconds) {
                 const days = Math.floor(seconds / 86400);
                 const hours = Math.floor((seconds % 86400) / 3600);
@@ -1063,7 +982,6 @@
                 return;
             }
             
-            // Show recent entries (most recent first)
             const recent = [...entries].reverse().slice(0, 50);
             
             function formatDate(timestamp) {
