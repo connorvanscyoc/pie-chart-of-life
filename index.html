@@ -1,4 +1,4 @@
-      <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -510,15 +510,6 @@
             -webkit-text-fill-color: transparent;
         }
         
-        .summary-unit {
-            font-size: 0.75rem;
-            font-weight: 400;
-            background: none !important;
-            -webkit-background-clip: unset !important;
-            -webkit-text-fill-color: #a0a0a0 !important;
-            color: #a0a0a0;
-        }
-        
         .summary-label {
             font-size: 0.7rem;
             color: #888;
@@ -857,7 +848,21 @@
             'Monaco', 'Vatican City'
         ];
         
-        // US States + DC + Territories (Puerto Rico included here!)
+        // US States + DC only (for counting states visited)
+        const US_STATES = new Set([
+            'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado',
+            'Connecticut', 'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho',
+            'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana',
+            'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota',
+            'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada',
+            'New Hampshire', 'New Jersey', 'New Mexico', 'New York',
+            'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon',
+            'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
+            'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington',
+            'West Virginia', 'Wisconsin', 'Wyoming', 'Washington DC'
+        ]);
+        
+        // US States + DC + Territories (for excluding from country count)
         const US_STATES_AND_TERRITORIES = new Set([
             'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado',
             'Connecticut', 'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho',
@@ -1597,14 +1602,14 @@
             const borderCrossings = entries.length - flightCount;
             
             const allLocations = new Set(entries.map(e => e.location));
-            const statesVisited = [...allLocations].filter(loc => US_STATES_AND_TERRITORIES.has(loc)).length;
+            const statesVisited = [...allLocations].filter(loc => US_STATES.has(loc)).length;
             const countriesVisited = [...allLocations].filter(loc => 
                 !US_STATES_AND_TERRITORIES.has(loc) && !isFlight(loc)
             ).length;
             
             document.getElementById('summary-grid').innerHTML = `
                 <div class="summary-item">
-                    <div class="summary-value">${ageYears.toFixed(2)} <span class="summary-unit">years</span></div>
+                    <div class="summary-value">${ageYears.toFixed(2)}</div>
                     <div class="summary-label">Current Age</div>
                 </div>
                 <div class="summary-item">
@@ -1798,42 +1803,39 @@
         
         function renderCumulativeChart(ctx) {
             const { startDate, endDate } = getDateRange();
-            const rangeDays = (endDate - startDate) / (1000 * 60 * 60 * 24);
+            const totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
             
-            // Smart granularity based on range
+            // Always calculate daily, but thin out display points if too many
+            // We want roughly 200-500 points max for performance
+            const maxPoints = 400;
+            const skipDays = totalDays > maxPoints ? Math.ceil(totalDays / maxPoints) : 1;
+            
+            // Generate time points (daily, but sampled if range is large)
             let timePoints = [];
-            let formatLabel;
+            let d = new Date(startDate);
+            let dayCount = 0;
+            while (d <= endDate) {
+                if (dayCount % skipDays === 0 || d >= endDate) {
+                    timePoints.push(new Date(d));
+                }
+                d.setDate(d.getDate() + 1);
+                dayCount++;
+            }
+            // Always include the end date
+            if (timePoints[timePoints.length - 1] < endDate) {
+                timePoints.push(new Date(endDate));
+            }
             
-            if (rangeDays <= 60) {
-                // Daily for ranges up to 2 months
-                let d = new Date(startDate);
-                while (d <= endDate) {
-                    timePoints.push(new Date(d));
-                    d.setDate(d.getDate() + 1);
-                }
+            // Smart label formatting based on range
+            let formatLabel;
+            if (totalDays <= 60) {
                 formatLabel = (d) => `${d.getMonth()+1}/${d.getDate()}`;
-            } else if (rangeDays <= 365) {
-                // Weekly for ranges up to 1 year
-                let d = new Date(startDate);
-                while (d <= endDate) {
-                    timePoints.push(new Date(d));
-                    d.setDate(d.getDate() + 7);
-                }
+            } else if (totalDays <= 365) {
                 formatLabel = (d) => `${d.getMonth()+1}/${d.getDate()}`;
-            } else if (rangeDays <= 365 * 5) {
-                // Monthly for ranges up to 5 years
-                let d = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-                while (d <= endDate) {
-                    timePoints.push(new Date(d));
-                    d.setMonth(d.getMonth() + 1);
-                }
+            } else if (totalDays <= 365 * 3) {
                 formatLabel = (d) => `${d.getMonth()+1}/${d.getFullYear().toString().slice(-2)}`;
             } else {
-                // Yearly for longer ranges
-                for (let y = startDate.getFullYear(); y <= endDate.getFullYear(); y++) {
-                    timePoints.push(new Date(y, 0, 1));
-                }
-                formatLabel = (d) => d.getFullYear().toString();
+                formatLabel = (d) => `${d.getMonth()+1}/${d.getFullYear().toString().slice(-2)}`;
             }
             
             // Calculate cumulative totals at each time point
@@ -1841,9 +1843,9 @@
             selectedLocations.forEach(loc => {
                 cumulativeData[loc] = [];
                 
-                timePoints.forEach((point, i) => {
-                    const rangeEnd = i < timePoints.length - 1 ? timePoints[i + 1] : endDate;
-                    const totals = calculateLocationTotals(startDate, rangeEnd);
+                timePoints.forEach((point) => {
+                    // Calculate total from startDate to this point
+                    const totals = calculateLocationTotals(startDate, point);
                     cumulativeData[loc].push((totals[loc] || 0) / 86400);
                 });
             });
@@ -1856,8 +1858,8 @@
                 borderColor: locationColorMap[loc] || '#888',
                 backgroundColor: (locationColorMap[loc] || '#888') + '20',
                 fill: false,
-                tension: 0.3,
-                pointRadius: timePoints.length > 50 ? 0 : 3,
+                tension: 0.1,
+                pointRadius: 0,  // Hide points, just show line
                 borderWidth: 2
             }));
             
@@ -1881,7 +1883,8 @@
                             grid: { color: 'rgba(255,255,255,0.1)' }, 
                             ticks: { 
                                 color: '#888',
-                                maxTicksLimit: 12
+                                maxTicksLimit: 12,
+                                maxRotation: 45
                             } 
                         },
                         y: { 
