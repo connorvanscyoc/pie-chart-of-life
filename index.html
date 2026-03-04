@@ -211,15 +211,27 @@
         
         .control-select {
             appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23888' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
             background-position: right 12px center;
+            background-color: rgba(255, 255, 255, 0.06) !important;
             padding-right: 35px;
+            cursor: pointer;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .control-select:focus {
+            border-color: #667eea !important;
+            outline: none !important;
         }
         
         .control-select option {
-            background: #1a1a2e;
-            color: #fff;
+            background: #1a1a2e !important;
+            color: #fff !important;
+            padding: 10px;
         }
         
         .search-input::placeholder, .control-input::placeholder {
@@ -296,6 +308,9 @@
             padding: 20px;
             margin-bottom: 15px;
             border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: visible;
+            position: relative;
+            z-index: 1;
         }
         
         .stat-row {
@@ -334,6 +349,7 @@
             position: relative;
             height: 280px;
             margin: 15px 0;
+            z-index: 1;
         }
         
         .controls {
@@ -341,11 +357,15 @@
             gap: 10px;
             margin-bottom: 15px;
             flex-wrap: wrap;
+            position: relative;
+            z-index: 20;
         }
         
         .control-group {
             flex: 1;
             min-width: 120px;
+            position: relative;
+            z-index: 20;
         }
         
         .control-label {
@@ -359,31 +379,39 @@
             padding: 10px 12px;
             font-size: 0.9rem;
             width: 100%;
+            min-height: 42px;
         }
         
         .date-text-input {
             width: 100%;
             background: rgba(255, 255, 255, 0.06) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
             border-radius: 12px;
             padding: 10px 12px;
             color: #fff !important;
             font-size: 0.9rem;
-            outline: none;
+            outline: none !important;
             -webkit-appearance: none;
             appearance: none;
+            box-shadow: none !important;
         }
         
         .date-text-input:focus {
-            border-color: #667eea;
+            border-color: #667eea !important;
             background: rgba(255, 255, 255, 0.06) !important;
+            outline: none !important;
+            box-shadow: none !important;
         }
         
         .date-text-input:active,
         .date-text-input:valid,
-        .date-text-input:not(:placeholder-shown) {
+        .date-text-input:not(:placeholder-shown),
+        .date-text-input:hover {
             background: rgba(255, 255, 255, 0.06) !important;
             color: #fff !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+            outline: none !important;
+            box-shadow: none !important;
         }
         
         .date-text-input::placeholder {
@@ -393,9 +421,13 @@
         /* Prevent autofill from changing background */
         .date-text-input:-webkit-autofill,
         .date-text-input:-webkit-autofill:hover,
-        .date-text-input:-webkit-autofill:focus {
-            -webkit-box-shadow: 0 0 0 1000px rgba(26, 26, 46, 1) inset !important;
+        .date-text-input:-webkit-autofill:focus,
+        .date-text-input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 1000px #1a1a2e inset !important;
             -webkit-text-fill-color: #fff !important;
+            background-color: rgba(255, 255, 255, 0.06) !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+            transition: background-color 5000s ease-in-out 0s;
         }
         
         .tab-bar {
@@ -1327,6 +1359,11 @@
                     buildLocationColorMap();
                     updateCurrentLocation();
                     updateSyncStatus('online');
+                    
+                    // If user is on stats page, refresh the charts
+                    if (document.getElementById('page-stats').classList.contains('active')) {
+                        loadStats();
+                    }
                 } else {
                     throw new Error(result.error);
                 }
@@ -1339,6 +1376,11 @@
                     entries = JSON.parse(cached);
                     buildLocationColorMap();
                     updateCurrentLocation();
+                    
+                    // If user is on stats page, refresh the charts
+                    if (document.getElementById('page-stats').classList.contains('active')) {
+                        loadStats();
+                    }
                 }
             }
             
