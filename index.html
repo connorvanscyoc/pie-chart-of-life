@@ -989,6 +989,22 @@
                     <button class="tab-btn active" id="trail-off-btn">Off</button>
                     <button class="tab-btn" id="trail-on-btn">Show Trail</button>
                 </div>
+                
+                <div id="animation-controls" style="display:none; margin-top: 15px;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="play-btn" class="tab-btn" style="flex: 0 0 auto; padding: 8px 20px;">▶ Play</button>
+                        <div style="flex: 1; text-align: center;">
+                            <div id="animation-date" style="font-size: 1.1rem; font-weight: 600; color: #667eea;">--</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <input type="range" id="animation-slider" min="0" max="100" value="0" style="width: 100%; accent-color: #667eea;">
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #888; margin-top: 5px;">
+                        <span id="animation-start-label">Start</span>
+                        <span id="animation-end-label">Now</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1219,6 +1235,11 @@
         let trailMarkers = [];
         let showTrail = false;
         let trailToggleInitialized = false;
+        let animationPoints = [];
+        let animationIndex = 0;
+        let animationPlaying = false;
+        let animationInterval = null;
+        let animationMarker = null;
         
         const BIRTH_DATE = new Date('1996-11-04T07:31:00-05:00');
         
@@ -2355,10 +2376,14 @@
             timeRange.addEventListener('change', () => {
                 yearGroup.style.display = timeRange.value === 'year' ? 'block' : 'none';
                 dateControls.classList.toggle('show', timeRange.value === 'custom');
+                stopAnimation();
                 updateCenterpoint();
             });
             
-            yearSelect.addEventListener('change', updateCenterpoint);
+            yearSelect.addEventListener('change', () => {
+                stopAnimation();
+                updateCenterpoint();
+            });
             
             // Date input formatting
             [dateFrom, dateTo].forEach(input => {
@@ -2371,9 +2396,15 @@
                     input.value = value;
                 });
                 
-                input.addEventListener('blur', updateCenterpoint);
+                input.addEventListener('blur', () => {
+                    stopAnimation();
+                    updateCenterpoint();
+                });
                 input.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') updateCenterpoint();
+                    if (e.key === 'Enter') {
+                        stopAnimation();
+                        updateCenterpoint();
+                    }
                 });
             });
         }
@@ -2632,6 +2663,13 @@
             }
             trailMarkers.forEach(m => leafletMap.removeLayer(m));
             trailMarkers = [];
+            
+            // Clear animation marker
+            if (animationMarker) {
+                leafletMap.removeLayer(animationMarker);
+                animationMarker = null;
+            }
+            animationPoints = [];
         }
         
         function drawTrail() {
@@ -2707,6 +2745,9 @@
             }
             
             if (trailPoints.length < 2) return;
+            
+            // Store points for animation
+            animationPoints = trailPoints;
             
             // Draw trail line (smooth curve)
             const coords = trailPoints.map(p => [p.lat, p.lng]);
@@ -2794,11 +2835,14 @@
         function initTrailToggle() {
             const offBtn = document.getElementById('trail-off-btn');
             const onBtn = document.getElementById('trail-on-btn');
+            const animationControls = document.getElementById('animation-controls');
             
             offBtn.addEventListener('click', () => {
                 showTrail = false;
                 offBtn.classList.add('active');
                 onBtn.classList.remove('active');
+                animationControls.style.display = 'none';
+                stopAnimation();
                 clearTrail();
                 updateCenterpoint();
             });
@@ -2807,8 +2851,132 @@
                 showTrail = true;
                 onBtn.classList.add('active');
                 offBtn.classList.remove('active');
+                animationControls.style.display = 'block';
                 drawTrail();
+                initAnimationControls();
             });
+        }
+        
+        function initAnimationControls() {
+            const playBtn = document.getElementById('play-btn');
+            const slider = document.getElementById('animation-slider');
+            
+            // Remove old listeners by cloning
+            const newPlayBtn = playBtn.cloneNode(true);
+            playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
+            const newSlider = slider.cloneNode(true);
+            slider.parentNode.replaceChild(newSlider, slider);
+            
+            newPlayBtn.addEventListener('click', toggleAnimation);
+            newSlider.addEventListener('input', (e) => {
+                const index = Math.floor((e.target.value / 100) * (animationPoints.length - 1));
+                animationIndex = index;
+                updateAnimationFrame();
+            });
+            
+            // Update labels
+            if (animationPoints.length > 0) {
+                const startDate = animationPoints[0].date;
+                const endDate = animationPoints[animationPoints.length - 1].date;
+                document.getElementById('animation-start-label').textContent = formatAnimationDate(startDate);
+                document.getElementById('animation-end-label').textContent = formatAnimationDate(endDate);
+                document.getElementById('animation-date').textContent = formatAnimationDate(startDate);
+            }
+            
+            // Reset slider
+            document.getElementById('animation-slider').value = 0;
+            animationIndex = 0;
+        }
+        
+        function formatAnimationDate(date) {
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                               'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${monthNames[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+        }
+        
+        function toggleAnimation() {
+            if (animationPlaying) {
+                stopAnimation();
+            } else {
+                startAnimation();
+            }
+        }
+        
+        function startAnimation() {
+            if (animationPoints.length < 2) return;
+            
+            animationPlaying = true;
+            document.getElementById('play-btn').textContent = '⏸ Pause';
+            
+            // If at end, restart
+            if (animationIndex >= animationPoints.length - 1) {
+                animationIndex = 0;
+            }
+            
+            // Determine speed based on number of points
+            const totalPoints = animationPoints.length;
+            const targetDuration = 15000; // 15 seconds for full animation
+            const interval = Math.max(20, Math.floor(targetDuration / totalPoints));
+            
+            animationInterval = setInterval(() => {
+                animationIndex++;
+                
+                if (animationIndex >= animationPoints.length) {
+                    stopAnimation();
+                    animationIndex = animationPoints.length - 1;
+                    return;
+                }
+                
+                updateAnimationFrame();
+            }, interval);
+        }
+        
+        function stopAnimation() {
+            animationPlaying = false;
+            document.getElementById('play-btn').textContent = '▶ Play';
+            
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+            }
+        }
+        
+        function updateAnimationFrame() {
+            if (!animationPoints.length || animationIndex >= animationPoints.length) return;
+            
+            const point = animationPoints[animationIndex];
+            
+            // Update slider
+            const progress = (animationIndex / (animationPoints.length - 1)) * 100;
+            document.getElementById('animation-slider').value = progress;
+            
+            // Update date display
+            document.getElementById('animation-date').textContent = formatAnimationDate(point.date);
+            
+            // Update animated marker
+            if (animationMarker) {
+                leafletMap.removeLayer(animationMarker);
+            }
+            
+            const animIcon = L.divIcon({
+                className: 'animation-marker',
+                html: `<div style="
+                    width: 24px;
+                    height: 24px;
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    border: 4px solid #fff;
+                    border-radius: 50%;
+                    box-shadow: 0 2px 15px rgba(102, 126, 234, 0.6);
+                "></div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+            
+            animationMarker = L.marker([point.lat, point.lng], { icon: animIcon, zIndexOffset: 1000 })
+                .addTo(leafletMap);
+            
+            // Smoothly pan map to follow marker
+            leafletMap.panTo([point.lat, point.lng], { animate: true, duration: 0.3 });
         }
     </script>
 </body>
