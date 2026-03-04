@@ -265,13 +265,13 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(26, 26, 46, 0.95);
-            backdrop-filter: blur(10px);
+            background: #1a1a2e;
             display: flex;
             justify-content: space-around;
             padding: 15px 20px;
             padding-bottom: calc(env(safe-area-inset-bottom, 15px) + 15px);
             border-top: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000;
         }
         
         .nav-btn {
@@ -1359,11 +1359,6 @@
                     buildLocationColorMap();
                     updateCurrentLocation();
                     updateSyncStatus('online');
-                    
-                    // If user is on stats page, refresh the charts
-                    if (document.getElementById('page-stats').classList.contains('active')) {
-                        loadStats();
-                    }
                 } else {
                     throw new Error(result.error);
                 }
@@ -1376,11 +1371,6 @@
                     entries = JSON.parse(cached);
                     buildLocationColorMap();
                     updateCurrentLocation();
-                    
-                    // If user is on stats page, refresh the charts
-                    if (document.getElementById('page-stats').classList.contains('active')) {
-                        loadStats();
-                    }
                 }
             }
             
@@ -2650,56 +2640,118 @@
             clearTrail();
             
             const { startDate, endDate } = getMapDateRange();
+            const timeRangeValue = document.getElementById('map-time-range').value;
             
-            // Calculate centerpoint for each year in range
-            const startYear = Math.max(startDate.getFullYear(), new Date(entries[0].timestamp).getFullYear());
-            const endYear = Math.min(endDate.getFullYear(), getAccurateNow().getFullYear());
-            
+            // Generate monthly points for smoother trail
             const trailPoints = [];
+            const firstEntryDate = new Date(entries[0].timestamp);
+            const effectiveStart = new Date(Math.max(startDate, firstEntryDate));
+            const effectiveEnd = new Date(Math.min(endDate, getAccurateNow()));
             
-            for (let year = startYear; year <= endYear; year++) {
-                const yearStart = new Date(Math.max(new Date(year, 0, 1), startDate));
-                const yearEnd = new Date(Math.min(new Date(year + 1, 0, 1), endDate));
-                
-                // Calculate cumulative centerpoint up to this year
-                const cp = calculateCenterpoint(startDate, yearEnd);
+            // Start from beginning of first month
+            let currentDate = new Date(effectiveStart.getFullYear(), effectiveStart.getMonth(), 1);
+            
+            while (currentDate <= effectiveEnd) {
+                // Calculate cumulative centerpoint from range start to this date
+                const cp = calculateCenterpoint(effectiveStart, currentDate);
                 if (cp) {
                     trailPoints.push({
                         lat: cp.lat,
                         lng: cp.lng,
-                        year: year
+                        date: new Date(currentDate),
+                        month: currentDate.getMonth(),
+                        year: currentDate.getFullYear()
                     });
                 }
+                
+                // Move to next month
+                currentDate.setMonth(currentDate.getMonth() + 1);
+            }
+            
+            // Add final point at end date
+            const finalCp = calculateCenterpoint(effectiveStart, effectiveEnd);
+            if (finalCp) {
+                trailPoints.push({
+                    lat: finalCp.lat,
+                    lng: finalCp.lng,
+                    date: effectiveEnd,
+                    month: effectiveEnd.getMonth(),
+                    year: effectiveEnd.getFullYear()
+                });
             }
             
             if (trailPoints.length < 2) return;
             
-            // Draw trail line
+            // Draw trail line (smooth curve)
             const coords = trailPoints.map(p => [p.lat, p.lng]);
             trailLine = L.polyline(coords, {
                 color: '#667eea',
                 weight: 3,
-                opacity: 0.7,
-                dashArray: '5, 10'
+                opacity: 0.8,
+                smoothFactor: 1.5
             }).addTo(leafletMap);
             
-            // Add year markers along trail
+            // Labeling logic depends on time range
+            const isSpecificYear = timeRangeValue === 'year';
+            const isCustomRange = timeRangeValue === 'custom';
+            const rangeMonths = trailPoints.length;
+            
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                               'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            const yearsLabeled = new Set();
+            
             trailPoints.forEach((point, i) => {
-                // Only show every few years to avoid clutter, or first/last
-                if (i === 0 || i === trailPoints.length - 1 || i % 3 === 0) {
+                const isStart = i === 0;
+                const isEnd = i === trailPoints.length - 1;
+                const isJanuary = point.month === 0;
+                const yearNotLabeled = !yearsLabeled.has(point.year);
+                
+                let shouldLabel = false;
+                let label = '';
+                
+                if (isSpecificYear || (isCustomRange && rangeMonths <= 24)) {
+                    // For specific year or short custom range: label quarterly + start/end
+                    if (isStart) {
+                        shouldLabel = true;
+                        label = `${monthNames[point.month]} ${point.year}`;
+                    } else if (isEnd) {
+                        shouldLabel = true;
+                        label = `${monthNames[point.month]} ${point.year}`;
+                    } else if (point.month % 3 === 0) { // Quarterly: Jan, Apr, Jul, Oct
+                        shouldLabel = true;
+                        label = monthNames[point.month];
+                    }
+                } else {
+                    // For all time or long ranges: label yearly + start/end
+                    if (isStart) {
+                        shouldLabel = true;
+                        label = 'Start';
+                    } else if (isEnd) {
+                        shouldLabel = true;
+                        label = 'Now';
+                    } else if (isJanuary && yearNotLabeled) {
+                        shouldLabel = true;
+                        label = point.year.toString();
+                        yearsLabeled.add(point.year);
+                    }
+                }
+                
+                if (shouldLabel) {
                     const icon = L.divIcon({
                         className: 'trail-year-icon',
                         html: `<div style="
-                            background: rgba(102, 126, 234, 0.8);
+                            background: rgba(102, 126, 234, 0.9);
                             color: #fff;
-                            padding: 2px 6px;
+                            padding: 3px 8px;
                             border-radius: 10px;
                             font-size: 11px;
                             font-weight: 600;
                             white-space: nowrap;
-                        ">${point.year}</div>`,
-                        iconSize: [40, 20],
-                        iconAnchor: [20, 10]
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                        ">${label}</div>`,
+                        iconSize: [60, 20],
+                        iconAnchor: [30, 10]
                     });
                     
                     const marker = L.marker([point.lat, point.lng], { icon: icon }).addTo(leafletMap);
