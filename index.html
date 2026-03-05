@@ -2017,12 +2017,24 @@
             const flightCount = filteredEntries.filter(e => isFlight(e.location)).length;
             const borderCrossings = filteredEntries.length - flightCount;
             
-            // Get unique locations within range
-            const locationsInRange = new Set(filteredEntries.map(e => e.location));
+            // Get unique locations within range, EXCLUDING flights
+            const locationsInRange = new Set(
+                filteredEntries
+                    .filter(e => !isFlight(e.location))
+                    .map(e => e.location)
+            );
+            
+            // States visited (only the 50 states, not DC or territories)
             const statesVisited = [...locationsInRange].filter(loc => US_STATES.has(loc)).length;
-            const countriesVisited = [...locationsInRange].filter(loc => 
-                !US_STATES_AND_TERRITORIES.has(loc) && !isFlight(loc)
-            ).length;
+            
+            // Countries visited:
+            // 1. Count USA as 1 country if ANY US state/territory was visited
+            // 2. Add count of non-US locations (excluding flights)
+            const visitedUSA = [...locationsInRange].some(loc => US_STATES_AND_TERRITORIES.has(loc));
+            const nonUSCountries = [...locationsInRange].filter(loc => 
+                !US_STATES_AND_TERRITORIES.has(loc)
+            );
+            const countriesVisited = (visitedUSA ? 1 : 0) + nonUSCountries.length;
             
             document.getElementById('summary-grid').innerHTML = `
                 <div class="summary-item">
