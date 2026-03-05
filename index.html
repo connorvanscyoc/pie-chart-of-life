@@ -981,6 +981,15 @@
                         <div class="cp-stat-label">Locations</div>
                     </div>
                 </div>
+                <div id="gps-status" style="margin-top: 15px; padding: 10px; background: rgba(107, 203, 119, 0.1); border-radius: 8px; display: none;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.2rem;">📡</span>
+                        <div>
+                            <div style="font-size: 0.85rem; color: #6bcb77; font-weight: 600;">Live GPS Active</div>
+                            <div id="gps-point-count" style="font-size: 0.75rem; color: #888;">0 points</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <div class="centerpoint-info">
@@ -1045,6 +1054,14 @@
         // CONFIGURATION
         // ============================================
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxT_9e0KgXVQuMVcxuQcbFESCfbidCMpgrmnQXfI4JNnZwQorZXAcy-D8Vcqw5mgKAy/exec';
+        
+        // GPS TRACKING - Set this to your Overland webhook URL + ?action=getData
+        // Example: 'https://script.google.com/macros/s/YOUR_WEBHOOK_ID/exec?action=getData'
+        const GPS_WEBHOOK_URL = 'https://script.googleusercontent.com/macros/echo?user_content_key=AY5xjrTQmWrtH9met_S2oOCGEOCcfLXtUH_TP7scaeF0pGUsUJrjn6b4M8O8WyHAZyVZNu6lWhyEWW-NrBIbqO-HrYFlK3VfuqzTe4fnX-qbSb-GDMUFjJwVyDFpFjRtRNAKRS64VEzWwW5X2Np4xYNavcCXU1b1ke3KvNBUUEbG4c7Pfj7IcA_M2-lfMfd6znOEiTlJqOXDFGzqwZvhaPy8WvHr28ht_ioEjLIu19rJouEF0ARXXDQ2hVrkU9aEq2UQp0wfv3SmCgLyaPbKvdhlxi1yIabsJXqbZMA3oVxT3J7rGvIA5w3wpQ9Nsokmew&lib=MQOCUZigGuFAJONgqhJG2frgYXuqSN8xO'; // <-- PASTE YOUR WEBHOOK URL HERE (add ?action=getData at the end)
+        
+        // The cutoff date: before this, use state/country centers; after this, use GPS data
+        // March 5, 2026 at 1:04 PM EST
+        const GPS_CUTOFF_DATE = new Date('2026-03-05T13:04:00-05:00');
         
         const QUICK_LOCATIONS = [
             'Washington DC', 'Maryland', 'Delaware', 'New York', 'Virginia',
@@ -1240,6 +1257,7 @@
         let animationPlaying = false;
         let animationInterval = null;
         let animationMarker = null;
+        let gpsData = []; // Real-time GPS data from Overland
         
         const BIRTH_DATE = new Date('1996-11-04T07:31:00-05:00');
         
@@ -1396,6 +1414,45 @@
             }
             
             localStorage.setItem('pie_chart_entries', JSON.stringify(entries));
+            
+            // Also fetch GPS data if webhook URL is configured
+            await fetchGPSData();
+        }
+        
+        async function fetchGPSData() {
+            if (!GPS_WEBHOOK_URL) return;
+            
+            try {
+                const response = await fetch(GPS_WEBHOOK_URL);
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    gpsData = result.data.map(point => ({
+                        timestamp: new Date(point.timestamp),
+                        latitude: parseFloat(point.latitude),
+                        longitude: parseFloat(point.longitude),
+                        accuracy: point.accuracy,
+                        speed: point.speed,
+                        motion: point.motion
+                    })).sort((a, b) => a.timestamp - b.timestamp);
+                    
+                    console.log(`Loaded ${gpsData.length} GPS points`);
+                    
+                    // Cache GPS data
+                    localStorage.setItem('pie_chart_gps_data', JSON.stringify(gpsData));
+                }
+            } catch (error) {
+                console.error('GPS fetch error:', error);
+                
+                // Try loading from cache
+                const cached = localStorage.getItem('pie_chart_gps_data');
+                if (cached) {
+                    gpsData = JSON.parse(cached).map(point => ({
+                        ...point,
+                        timestamp: new Date(point.timestamp)
+                    }));
+                }
+            }
         }
         
         function buildLocationColorMap() {
@@ -2496,27 +2553,80 @@
         }
         
         function calculateCenterpoint(startDate, endDate) {
-            const totals = calculateLocationTotals(startDate, endDate);
-            
             let totalWeightedLat = 0;
             let totalWeightedLng = 0;
             let totalTime = 0;
             let locationCount = 0;
             
-            for (const [location, seconds] of Object.entries(totals)) {
-                // Skip flights - they don't have a fixed location
-                if (isFlight(location)) continue;
+            // ============================================
+            // PART 1: Historical data (before GPS cutoff)
+            // Uses state/country center coordinates
+            // ============================================
+            const historicalEnd = endDate < GPS_CUTOFF_DATE ? endDate : GPS_CUTOFF_DATE;
+            
+            if (startDate < GPS_CUTOFF_DATE) {
+                const totals = calculateLocationTotals(startDate, historicalEnd);
                 
-                const coords = LOCATION_COORDS[location];
-                if (!coords) {
-                    console.warn(`No coordinates for: ${location}`);
-                    continue;
+                for (const [location, seconds] of Object.entries(totals)) {
+                    // Skip flights - they don't have a fixed location
+                    if (isFlight(location)) continue;
+                    
+                    const coords = LOCATION_COORDS[location];
+                    if (!coords) {
+                        console.warn(`No coordinates for: ${location}`);
+                        continue;
+                    }
+                    
+                    totalWeightedLat += coords[0] * seconds;
+                    totalWeightedLng += coords[1] * seconds;
+                    totalTime += seconds;
+                    locationCount++;
                 }
+            }
+            
+            // ============================================
+            // PART 2: GPS data (after GPS cutoff)
+            // Uses actual GPS coordinates from Overland
+            // ============================================
+            if (endDate > GPS_CUTOFF_DATE && gpsData.length > 0) {
+                const gpsStart = startDate > GPS_CUTOFF_DATE ? startDate : GPS_CUTOFF_DATE;
                 
-                totalWeightedLat += coords[0] * seconds;
-                totalWeightedLng += coords[1] * seconds;
-                totalTime += seconds;
-                locationCount++;
+                // Filter GPS points within our date range
+                const relevantPoints = gpsData.filter(point => 
+                    point.timestamp >= gpsStart && point.timestamp <= endDate
+                );
+                
+                if (relevantPoints.length > 0) {
+                    // Calculate time-weighted average of GPS points
+                    // Each point's weight is the time until the next point
+                    for (let i = 0; i < relevantPoints.length; i++) {
+                        const point = relevantPoints[i];
+                        const nextPoint = relevantPoints[i + 1];
+                        
+                        // Calculate duration: time until next point, or until endDate if last point
+                        let duration;
+                        if (nextPoint) {
+                            duration = (nextPoint.timestamp - point.timestamp) / 1000; // in seconds
+                        } else {
+                            // Last point: count until endDate or now
+                            const endTime = endDate > getAccurateNow() ? getAccurateNow() : endDate;
+                            duration = (endTime - point.timestamp) / 1000;
+                        }
+                        
+                        // Skip if duration is negative or zero
+                        if (duration <= 0) continue;
+                        
+                        totalWeightedLat += point.latitude * duration;
+                        totalWeightedLng += point.longitude * duration;
+                        totalTime += duration;
+                    }
+                    
+                    // Count unique approximate locations (rounded to 2 decimal places)
+                    const uniqueGPSLocations = new Set(
+                        relevantPoints.map(p => `${p.latitude.toFixed(2)},${p.longitude.toFixed(2)}`)
+                    );
+                    locationCount += uniqueGPSLocations.size;
+                }
             }
             
             if (totalTime === 0) return null;
@@ -2649,6 +2759,22 @@
                 `${distFromBirthMiles} mi`;
             document.getElementById('cp-locations-count').textContent = 
                 centerpoint.locationCount;
+            
+            // Update GPS status indicator
+            const gpsStatus = document.getElementById('gps-status');
+            const { startDate: rangeStart, endDate: rangeEnd } = getMapDateRange();
+            const hasGPSInRange = gpsData.length > 0 && rangeEnd > GPS_CUTOFF_DATE;
+            
+            if (hasGPSInRange) {
+                const gpsPointsInRange = gpsData.filter(p => 
+                    p.timestamp >= rangeStart && p.timestamp <= rangeEnd
+                ).length;
+                gpsStatus.style.display = 'block';
+                document.getElementById('gps-point-count').textContent = 
+                    `${gpsPointsInRange} GPS points in range`;
+            } else {
+                gpsStatus.style.display = 'none';
+            }
             
             // Show trail if enabled
             if (showTrail) {
