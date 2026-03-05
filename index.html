@@ -1057,7 +1057,7 @@
         
         // GPS TRACKING - Set this to your Overland webhook URL + ?action=getData
         // Example: 'https://script.google.com/macros/s/YOUR_WEBHOOK_ID/exec?action=getData'
-        const GPS_WEBHOOK_URL = 'https://script.googleusercontent.com/macros/echo?user_content_key=AY5xjrTQmWrtH9met_S2oOCGEOCcfLXtUH_TP7scaeF0pGUsUJrjn6b4M8O8WyHAZyVZNu6lWhyEWW-NrBIbqO-HrYFlK3VfuqzTe4fnX-qbSb-GDMUFjJwVyDFpFjRtRNAKRS64VEzWwW5X2Np4xYNavcCXU1b1ke3KvNBUUEbG4c7Pfj7IcA_M2-lfMfd6znOEiTlJqOXDFGzqwZvhaPy8WvHr28ht_ioEjLIu19rJouEF0ARXXDQ2hVrkU9aEq2UQp0wfv3SmCgLyaPbKvdhlxi1yIabsJXqbZMA3oVxT3J7rGvIA5w3wpQ9Nsokmew&lib=MQOCUZigGuFAJONgqhJG2frgYXuqSN8xO'; // <-- PASTE YOUR WEBHOOK URL HERE (add ?action=getData at the end)
+        const GPS_WEBHOOK_URL = ''; // <-- PASTE YOUR WEBHOOK URL HERE (add ?action=getData at the end)
         
         // The cutoff date: before this, use state/country centers; after this, use GPS data
         // March 5, 2026 at 1:04 PM EST
@@ -1991,23 +1991,43 @@
         
         function updateSummary() {
             const now = getAccurateNow();
-            const ageMs = now - BIRTH_DATE;
-            const ageYears = ageMs / (1000 * 60 * 60 * 24 * 365.25);
+            const { startDate, endDate } = getDateRange();
+            const timeRange = document.getElementById('time-range-select')?.value || 'all';
             
-            // Count flights using isFlight helper
-            const flightCount = entries.filter(e => isFlight(e.location)).length;
-            const borderCrossings = entries.length - flightCount;
+            // Filter entries to the selected date range
+            const filteredEntries = entries.filter(entry => {
+                const entryDate = new Date(entry.timestamp);
+                return entryDate >= startDate && entryDate <= endDate;
+            });
             
-            const allLocations = new Set(entries.map(e => e.location));
-            const statesVisited = [...allLocations].filter(loc => US_STATES.has(loc)).length;
-            const countriesVisited = [...allLocations].filter(loc => 
+            // For "All Time", show current age; otherwise show days in range
+            let topLeftValue, topLeftLabel;
+            if (timeRange === 'all') {
+                const ageMs = now - BIRTH_DATE;
+                const ageYears = ageMs / (1000 * 60 * 60 * 24 * 365.25);
+                topLeftValue = ageYears.toFixed(2);
+                topLeftLabel = 'Current Age';
+            } else {
+                const daysInRange = (endDate - startDate) / (1000 * 60 * 60 * 24);
+                topLeftValue = daysInRange.toFixed(1);
+                topLeftLabel = 'Days in Range';
+            }
+            
+            // Count flights using isFlight helper (within range)
+            const flightCount = filteredEntries.filter(e => isFlight(e.location)).length;
+            const borderCrossings = filteredEntries.length - flightCount;
+            
+            // Get unique locations within range
+            const locationsInRange = new Set(filteredEntries.map(e => e.location));
+            const statesVisited = [...locationsInRange].filter(loc => US_STATES.has(loc)).length;
+            const countriesVisited = [...locationsInRange].filter(loc => 
                 !US_STATES_AND_TERRITORIES.has(loc) && !isFlight(loc)
             ).length;
             
             document.getElementById('summary-grid').innerHTML = `
                 <div class="summary-item">
-                    <div class="summary-value">${ageYears.toFixed(2)}</div>
-                    <div class="summary-label">Current Age</div>
+                    <div class="summary-value">${topLeftValue}</div>
+                    <div class="summary-label">${topLeftLabel}</div>
                 </div>
                 <div class="summary-item">
                     <div class="summary-value">${borderCrossings.toLocaleString()}</div>
@@ -2026,15 +2046,20 @@
                     <div class="summary-label">Flights</div>
                 </div>
                 <div class="summary-item">
-                    <div class="summary-value">${allLocations.size}</div>
+                    <div class="summary-value">${locationsInRange.size}</div>
                     <div class="summary-label">Unique Locations</div>
                 </div>
             `;
         }
         
         function getDateRange() {
-            const timeRange = document.getElementById('time-range-select').value;
+            const timeRange = document.getElementById('time-range-select')?.value || 'all';
             let startDate, endDate;
+            
+            // Guard against empty entries
+            if (entries.length === 0) {
+                return { startDate: new Date(), endDate: new Date() };
+            }
             
             if (timeRange === 'all') {
                 startDate = new Date(entries[0].timestamp);
@@ -2055,6 +2080,9 @@
         
         function renderChart() {
             if (entries.length === 0) return;
+            
+            // Update summary stats to match selected time range
+            updateSummary();
             
             const ctx = document.getElementById('stats-chart').getContext('2d');
             if (statsChart) statsChart.destroy();
