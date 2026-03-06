@@ -2901,8 +2901,13 @@
         }
         
         function clearTrail() {
+            // Handle both single polyline and array of polylines
             if (trailLine) {
-                leafletMap.removeLayer(trailLine);
+                if (Array.isArray(trailLine)) {
+                    trailLine.forEach(line => leafletMap.removeLayer(line));
+                } else {
+                    leafletMap.removeLayer(trailLine);
+                }
                 trailLine = null;
             }
             trailMarkers.forEach(m => leafletMap.removeLayer(m));
@@ -2929,50 +2934,36 @@
             const effectiveStart = new Date(Math.max(startDate, firstEntryDate));
             const effectiveEnd = new Date(Math.min(endDate, getAccurateNow()));
             
-            const isSpecificYear = timeRangeValue === 'year';
             const totalDays = (effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24);
-            const isShortRange = totalDays <= 400; // About 13 months
             
-            if (isSpecificYear || isShortRange) {
-                // Daily granularity for specific year or short ranges
-                let currentDate = new Date(effectiveStart);
-                
-                while (currentDate <= effectiveEnd) {
-                    const cp = calculateCenterpoint(effectiveStart, currentDate);
-                    if (cp) {
-                        trailPoints.push({
-                            lat: cp.lat,
-                            lng: cp.lng,
-                            date: new Date(currentDate),
-                            day: currentDate.getDate(),
-                            month: currentDate.getMonth(),
-                            year: currentDate.getFullYear()
-                        });
-                    }
-                    
-                    // Move to next day
-                    currentDate.setDate(currentDate.getDate() + 1);
+            // ============================================
+            // ALWAYS USE DAILY GRANULARITY
+            // For very long ranges, we sample to keep performance reasonable
+            // ============================================
+            let stepDays = 1; // Default: daily
+            if (totalDays > 3650) { // > 10 years
+                stepDays = 7; // Weekly for very long ranges
+            } else if (totalDays > 1825) { // > 5 years  
+                stepDays = 3; // Every 3 days
+            }
+            
+            let currentDate = new Date(effectiveStart);
+            
+            while (currentDate <= effectiveEnd) {
+                const cp = calculateCenterpoint(effectiveStart, currentDate);
+                if (cp) {
+                    trailPoints.push({
+                        lat: cp.lat,
+                        lng: cp.lng,
+                        date: new Date(currentDate),
+                        day: currentDate.getDate(),
+                        month: currentDate.getMonth(),
+                        year: currentDate.getFullYear()
+                    });
                 }
-            } else {
-                // Monthly granularity for longer ranges
-                let currentDate = new Date(effectiveStart.getFullYear(), effectiveStart.getMonth(), 1);
                 
-                while (currentDate <= effectiveEnd) {
-                    const cp = calculateCenterpoint(effectiveStart, currentDate);
-                    if (cp) {
-                        trailPoints.push({
-                            lat: cp.lat,
-                            lng: cp.lng,
-                            date: new Date(currentDate),
-                            day: currentDate.getDate(),
-                            month: currentDate.getMonth(),
-                            year: currentDate.getFullYear()
-                        });
-                    }
-                    
-                    // Move to next month
-                    currentDate.setMonth(currentDate.getMonth() + 1);
-                }
+                // Move forward by step
+                currentDate.setDate(currentDate.getDate() + stepDays);
             }
             
             // Add final point at end date
@@ -2993,78 +2984,116 @@
             // Store points for animation
             animationPoints = trailPoints;
             
-            // Draw trail line (smooth curve)
-            const coords = trailPoints.map(p => [p.lat, p.lng]);
-            trailLine = L.polyline(coords, {
-                color: '#667eea',
-                weight: 3,
-                opacity: 0.8,
-                smoothFactor: 1.5
-            }).addTo(leafletMap);
+            // ============================================
+            // HANDLE ANTIMERIDIAN CROSSINGS
+            // Split the path into segments that don't cross ±180°
+            // ============================================
+            const segments = [];
+            let currentSegment = [[trailPoints[0].lat, trailPoints[0].lng]];
             
-            // Labeling logic
+            for (let i = 1; i < trailPoints.length; i++) {
+                const prevLng = trailPoints[i - 1].lng;
+                const currLng = trailPoints[i].lng;
+                
+                // Check if we crossed the antimeridian (longitude jump > 180°)
+                const lngDiff = Math.abs(currLng - prevLng);
+                if (lngDiff > 180) {
+                    // End current segment and start a new one
+                    if (currentSegment.length > 0) {
+                        segments.push(currentSegment);
+                    }
+                    currentSegment = [[trailPoints[i].lat, trailPoints[i].lng]];
+                } else {
+                    currentSegment.push([trailPoints[i].lat, trailPoints[i].lng]);
+                }
+            }
+            
+            // Don't forget the last segment
+            if (currentSegment.length > 0) {
+                segments.push(currentSegment);
+            }
+            
+            // Draw each segment as a separate polyline
+            trailLine = [];
+            segments.forEach(segment => {
+                if (segment.length >= 2) {
+                    const line = L.polyline(segment, {
+                        color: '#667eea',
+                        weight: 2.5,
+                        opacity: 0.8,
+                        smoothFactor: 1
+                    }).addTo(leafletMap);
+                    trailLine.push(line);
+                }
+            });
+            
+            // ============================================
+            // SMALLER, MINIMAL LABELS
+            // Only show: start, end, and years
+            // ============================================
             const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             
-            const monthsLabeled = new Set();
             const yearsLabeled = new Set();
+            const isShortRange = totalDays <= 400;
             
             trailPoints.forEach((point, i) => {
                 const isStart = i === 0;
                 const isEnd = i === trailPoints.length - 1;
-                const monthKey = `${point.year}-${point.month}`;
-                const isFirstOfMonth = point.day === 1;
-                const monthNotLabeled = !monthsLabeled.has(monthKey);
-                const isJanuary = point.month === 0;
+                const isJanuary = point.month === 0 && point.day <= stepDays;
                 const yearNotLabeled = !yearsLabeled.has(point.year);
                 
                 let shouldLabel = false;
                 let label = '';
+                let isKeyPoint = false; // Start/end get slightly larger labels
                 
-                if (isSpecificYear || isShortRange) {
-                    // For specific year: label every month + start/end
-                    if (isStart) {
-                        shouldLabel = true;
+                if (isStart) {
+                    shouldLabel = true;
+                    isKeyPoint = true;
+                    if (isShortRange) {
                         label = `${monthNames[point.month]} ${point.day}`;
-                        monthsLabeled.add(monthKey);
-                    } else if (isEnd) {
-                        shouldLabel = true;
+                    } else {
+                        label = `${monthNames[point.month]} '${String(point.year).slice(2)}`;
+                    }
+                } else if (isEnd) {
+                    shouldLabel = true;
+                    isKeyPoint = true;
+                    if (isShortRange) {
                         label = `${monthNames[point.month]} ${point.day}`;
-                    } else if (isFirstOfMonth && monthNotLabeled) {
-                        shouldLabel = true;
-                        label = monthNames[point.month];
-                        monthsLabeled.add(monthKey);
+                    } else {
+                        label = `${monthNames[point.month]} '${String(point.year).slice(2)}`;
                     }
-                } else {
-                    // For all time or long ranges: label yearly + start/end
-                    if (isStart) {
-                        shouldLabel = true;
-                        label = 'Start';
-                    } else if (isEnd) {
-                        shouldLabel = true;
-                        label = 'Now';
-                    } else if (isJanuary && isFirstOfMonth && yearNotLabeled) {
-                        shouldLabel = true;
-                        label = point.year.toString();
-                        yearsLabeled.add(point.year);
-                    }
+                } else if (isJanuary && yearNotLabeled && !isShortRange) {
+                    // For long ranges, mark each year
+                    shouldLabel = true;
+                    label = `'${String(point.year).slice(2)}`;
+                    yearsLabeled.add(point.year);
+                } else if (isShortRange && point.day <= stepDays && !yearsLabeled.has(`${point.year}-${point.month}`)) {
+                    // For short ranges, mark each month but with tiny labels
+                    shouldLabel = true;
+                    label = monthNames[point.month];
+                    yearsLabeled.add(`${point.year}-${point.month}`);
                 }
                 
                 if (shouldLabel) {
+                    const fontSize = isKeyPoint ? '10px' : '8px';
+                    const padding = isKeyPoint ? '2px 6px' : '1px 4px';
+                    const opacity = isKeyPoint ? '0.9' : '0.7';
+                    
                     const icon = L.divIcon({
-                        className: 'trail-year-icon',
+                        className: 'trail-label',
                         html: `<div style="
-                            background: rgba(102, 126, 234, 0.9);
+                            background: rgba(102, 126, 234, ${opacity});
                             color: #fff;
-                            padding: 3px 8px;
-                            border-radius: 10px;
-                            font-size: 11px;
-                            font-weight: 600;
+                            padding: ${padding};
+                            border-radius: 8px;
+                            font-size: ${fontSize};
+                            font-weight: 500;
                             white-space: nowrap;
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                            pointer-events: none;
                         ">${label}</div>`,
-                        iconSize: [60, 20],
-                        iconAnchor: [30, 10]
+                        iconSize: [40, 16],
+                        iconAnchor: [20, 8]
                     });
                     
                     const marker = L.marker([point.lat, point.lng], { icon: icon }).addTo(leafletMap);
@@ -3073,7 +3102,14 @@
             });
             
             // Fit map to show entire trail
-            leafletMap.fitBounds(trailLine.getBounds(), { padding: [50, 50] });
+            if (trailLine.length > 0) {
+                const allBounds = trailLine.map(line => line.getBounds());
+                let combinedBounds = allBounds[0];
+                for (let i = 1; i < allBounds.length; i++) {
+                    combinedBounds.extend(allBounds[i]);
+                }
+                leafletMap.fitBounds(combinedBounds, { padding: [50, 50] });
+            }
         }
         
         function initTrailToggle() {
