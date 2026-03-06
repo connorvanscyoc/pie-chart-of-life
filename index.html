@@ -2927,7 +2927,6 @@
             clearTrail();
             
             const { startDate, endDate } = getMapDateRange();
-            const timeRangeValue = document.getElementById('map-time-range').value;
             
             const trailPoints = [];
             const firstEntryDate = new Date(entries[0].timestamp);
@@ -2937,20 +2936,132 @@
             const totalDays = (effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24);
             
             // ============================================
-            // ALWAYS USE DAILY GRANULARITY
-            // For very long ranges, we sample to keep performance reasonable
+            // OPTIMIZED INCREMENTAL TRAIL CALCULATION
+            // Instead of calling calculateCenterpoint() for each point,
+            // we build contributions once and accumulate as we go
             // ============================================
-            let stepDays = 1; // Default: daily
-            if (totalDays > 3650) { // > 10 years
-                stepDays = 7; // Weekly for very long ranges
-            } else if (totalDays > 1825) { // > 5 years  
-                stepDays = 3; // Every 3 days
+            
+            // Step 1: Build chronological list of location contributions
+            const contributions = [];
+            
+            // Helper: Convert lat/lng to Cartesian
+            function toCartesian(lat, lng) {
+                const latRad = lat * Math.PI / 180;
+                const lngRad = lng * Math.PI / 180;
+                return {
+                    x: Math.cos(latRad) * Math.cos(lngRad),
+                    y: Math.cos(latRad) * Math.sin(lngRad),
+                    z: Math.sin(latRad)
+                };
+            }
+            
+            // Add historical entries
+            for (let i = 0; i < entries.length; i++) {
+                const entry = entries[i];
+                const entryStart = new Date(entry.timestamp);
+                const entryEnd = i < entries.length - 1 ? new Date(entries[i + 1].timestamp) : getAccurateNow();
+                
+                // Skip if entirely outside our range
+                if (entryEnd <= effectiveStart || entryStart >= effectiveEnd) continue;
+                
+                // Skip flights
+                if (isFlight(entry.location)) continue;
+                
+                const coords = LOCATION_COORDS[entry.location];
+                if (!coords) continue;
+                
+                // Clamp to our range
+                const clampedStart = new Date(Math.max(entryStart, effectiveStart));
+                const clampedEnd = new Date(Math.min(entryEnd, effectiveEnd));
+                
+                const cart = toCartesian(coords[0], coords[1]);
+                
+                contributions.push({
+                    start: clampedStart,
+                    end: clampedEnd,
+                    x: cart.x,
+                    y: cart.y,
+                    z: cart.z
+                });
+            }
+            
+            // Add GPS data if applicable
+            if (effectiveEnd > GPS_CUTOFF_DATE && gpsData.length > 0) {
+                const gpsStart = effectiveStart > GPS_CUTOFF_DATE ? effectiveStart : GPS_CUTOFF_DATE;
+                const relevantGPS = gpsData.filter(p => {
+                    const t = p.timestamp instanceof Date ? p.timestamp : new Date(p.timestamp);
+                    return t >= gpsStart && t <= effectiveEnd;
+                });
+                
+                for (let i = 0; i < relevantGPS.length; i++) {
+                    const point = relevantGPS[i];
+                    const pointTime = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
+                    const nextTime = relevantGPS[i + 1] 
+                        ? (relevantGPS[i + 1].timestamp instanceof Date ? relevantGPS[i + 1].timestamp : new Date(relevantGPS[i + 1].timestamp))
+                        : effectiveEnd;
+                    
+                    const lat = parseFloat(point.latitude);
+                    const lng = parseFloat(point.longitude);
+                    if (isNaN(lat) || isNaN(lng)) continue;
+                    
+                    const cart = toCartesian(lat, lng);
+                    contributions.push({
+                        start: pointTime,
+                        end: nextTime,
+                        x: cart.x,
+                        y: cart.y,
+                        z: cart.z
+                    });
+                }
+            }
+            
+            // Sort by start time
+            contributions.sort((a, b) => a.start - b.start);
+            
+            // Step 2: Generate trail points at sampled intervals
+            // Aggressive sampling for performance - the visual difference is minimal
+            let stepDays = 1;
+            if (totalDays > 1825) stepDays = 14;      // > 5 years: bi-weekly
+            else if (totalDays > 730) stepDays = 7;   // 2-5 years: weekly
+            else if (totalDays > 180) stepDays = 3;   // 6mo-2yr: every 3 days
+            else if (totalDays > 60) stepDays = 2;    // 2-6mo: every 2 days
+            // < 60 days: daily
+            
+            // Helper to calculate centerpoint at a given time
+            function getCenterpointAt(targetDate) {
+                let totalX = 0, totalY = 0, totalZ = 0, totalTime = 0;
+                
+                for (const contrib of contributions) {
+                    if (contrib.start >= targetDate) break;
+                    
+                    const contribEnd = contrib.end < targetDate ? contrib.end : targetDate;
+                    const duration = (contribEnd - contrib.start) / 1000;
+                    
+                    if (duration <= 0) continue;
+                    
+                    totalX += contrib.x * duration;
+                    totalY += contrib.y * duration;
+                    totalZ += contrib.z * duration;
+                    totalTime += duration;
+                }
+                
+                if (totalTime === 0) return null;
+                
+                const avgX = totalX / totalTime;
+                const avgY = totalY / totalTime;
+                const avgZ = totalZ / totalTime;
+                
+                return {
+                    lat: Math.atan2(avgZ, Math.sqrt(avgX * avgX + avgY * avgY)) * 180 / Math.PI,
+                    lng: Math.atan2(avgY, avgX) * 180 / Math.PI
+                };
             }
             
             let currentDate = new Date(effectiveStart);
+            currentDate.setDate(currentDate.getDate() + 1);
             
             while (currentDate <= effectiveEnd) {
-                const cp = calculateCenterpoint(effectiveStart, currentDate);
+                const cp = getCenterpointAt(currentDate);
                 if (cp) {
                     trailPoints.push({
                         lat: cp.lat,
@@ -2961,13 +3072,11 @@
                         year: currentDate.getFullYear()
                     });
                 }
-                
-                // Move forward by step
                 currentDate.setDate(currentDate.getDate() + stepDays);
             }
             
-            // Add final point at end date
-            const finalCp = calculateCenterpoint(effectiveStart, effectiveEnd);
+            // Add final point
+            const finalCp = getCenterpointAt(effectiveEnd);
             if (finalCp) {
                 trailPoints.push({
                     lat: finalCp.lat,
@@ -3028,76 +3137,106 @@
             });
             
             // ============================================
-            // SMALLER, MINIMAL LABELS
-            // Only show: start, end, and years
+            // MINIMAL LABELS - auto-sized to fit content
             // ============================================
             const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             
-            const yearsLabeled = new Set();
-            const isShortRange = totalDays <= 400;
+            const labelsPlaced = new Set();
+            const isVeryShortRange = totalDays <= 90; // < 3 months
+            const isYearView = totalDays > 300 && totalDays <= 400; // Roughly a year
+            const isMultiYear = totalDays > 400;
+            
+            // Calculate effective step for labeling (matches sampling step)
+            let labelStep = 1;
+            if (totalDays > 1825) labelStep = 14;
+            else if (totalDays > 730) labelStep = 7;
+            else if (totalDays > 180) labelStep = 3;
+            else if (totalDays > 60) labelStep = 2;
             
             trailPoints.forEach((point, i) => {
                 const isStart = i === 0;
                 const isEnd = i === trailPoints.length - 1;
-                const isJanuary = point.month === 0 && point.day <= stepDays;
-                const yearNotLabeled = !yearsLabeled.has(point.year);
                 
                 let shouldLabel = false;
                 let label = '';
-                let isKeyPoint = false; // Start/end get slightly larger labels
+                let isDot = false;
                 
                 if (isStart) {
                     shouldLabel = true;
-                    isKeyPoint = true;
-                    if (isShortRange) {
-                        label = `${monthNames[point.month]} ${point.day}`;
-                    } else {
-                        label = `${monthNames[point.month]} '${String(point.year).slice(2)}`;
-                    }
+                    label = monthNames[point.month];
                 } else if (isEnd) {
                     shouldLabel = true;
-                    isKeyPoint = true;
-                    if (isShortRange) {
-                        label = `${monthNames[point.month]} ${point.day}`;
-                    } else {
-                        label = `${monthNames[point.month]} '${String(point.year).slice(2)}`;
+                    isDot = true;
+                } else if (isVeryShortRange) {
+                    // < 3 months: label every ~7 days
+                    const pointsPerWeek = Math.max(1, Math.round(7 / Math.max(1, labelStep)));
+                    if (i % pointsPerWeek === 0 && i > 0) {
+                        shouldLabel = true;
+                        label = `${point.month + 1}/${point.day}`;
+                        labelsPlaced.add(i);
                     }
-                } else if (isJanuary && yearNotLabeled && !isShortRange) {
-                    // For long ranges, mark each year
-                    shouldLabel = true;
-                    label = `'${String(point.year).slice(2)}`;
-                    yearsLabeled.add(point.year);
-                } else if (isShortRange && point.day <= stepDays && !yearsLabeled.has(`${point.year}-${point.month}`)) {
-                    // For short ranges, mark each month but with tiny labels
-                    shouldLabel = true;
-                    label = monthNames[point.month];
-                    yearsLabeled.add(`${point.year}-${point.month}`);
+                } else if (isYearView) {
+                    // Year view: monthly labels (skip first month since start covers it)
+                    const monthKey = `${point.year}-${point.month}`;
+                    const isFirstOfMonth = point.day <= labelStep;
+                    if (isFirstOfMonth && !labelsPlaced.has(monthKey)) {
+                        // Skip if too close to start
+                        if (i > 5) {
+                            shouldLabel = true;
+                            label = monthNames[point.month];
+                            labelsPlaced.add(monthKey);
+                        }
+                    }
+                } else if (isMultiYear) {
+                    // Multi-year: yearly labels (Jan 1)
+                    const isJanuary = point.month === 0 && point.day <= labelStep;
+                    if (isJanuary && !labelsPlaced.has(point.year)) {
+                        shouldLabel = true;
+                        label = `'${String(point.year).slice(2)}`;
+                        labelsPlaced.add(point.year);
+                    }
                 }
                 
                 if (shouldLabel) {
-                    const fontSize = isKeyPoint ? '10px' : '8px';
-                    const padding = isKeyPoint ? '2px 6px' : '1px 4px';
-                    const opacity = isKeyPoint ? '0.9' : '0.7';
-                    
-                    const icon = L.divIcon({
-                        className: 'trail-label',
-                        html: `<div style="
-                            background: rgba(102, 126, 234, ${opacity});
-                            color: #fff;
-                            padding: ${padding};
-                            border-radius: 8px;
-                            font-size: ${fontSize};
-                            font-weight: 500;
-                            white-space: nowrap;
-                            pointer-events: none;
-                        ">${label}</div>`,
-                        iconSize: [40, 16],
-                        iconAnchor: [20, 8]
-                    });
-                    
-                    const marker = L.marker([point.lat, point.lng], { icon: icon }).addTo(leafletMap);
-                    trailMarkers.push(marker);
+                    if (isDot) {
+                        // End marker: just a small dot
+                        const icon = L.divIcon({
+                            className: 'trail-end-dot',
+                            html: `<div style="
+                                width: 8px;
+                                height: 8px;
+                                background: #667eea;
+                                border: 2px solid #fff;
+                                border-radius: 50%;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+                            "></div>`,
+                            iconSize: null,
+                            iconAnchor: [6, 6]
+                        });
+                        const marker = L.marker([point.lat, point.lng], { icon: icon }).addTo(leafletMap);
+                        trailMarkers.push(marker);
+                    } else {
+                        // Text label: auto-sized
+                        const icon = L.divIcon({
+                            className: 'trail-label',
+                            html: `<div style="
+                                display: inline-block;
+                                background: rgba(102, 126, 234, 0.85);
+                                color: #fff;
+                                padding: 1px 5px;
+                                border-radius: 6px;
+                                font-size: 9px;
+                                font-weight: 500;
+                                white-space: nowrap;
+                                pointer-events: none;
+                            ">${label}</div>`,
+                            iconSize: null,
+                            iconAnchor: [0, 0]
+                        });
+                        const marker = L.marker([point.lat, point.lng], { icon: icon }).addTo(leafletMap);
+                        trailMarkers.push(marker);
+                    }
                 }
             });
             
