@@ -2603,10 +2603,39 @@
         }
         
         function calculateCenterpoint(startDate, endDate) {
-            let totalWeightedLat = 0;
-            let totalWeightedLng = 0;
+            // ============================================
+            // SPHERICAL CENTERPOINT CALCULATION
+            // ============================================
+            // We calculate the weighted average in 3D Cartesian space (x, y, z)
+            // then convert back to lat/lng. This correctly handles:
+            // - Crossing the antimeridian (±180°)
+            // - Locations near the poles
+            // - Any combination of worldwide locations
+            // ============================================
+            
+            let totalWeightedX = 0;
+            let totalWeightedY = 0;
+            let totalWeightedZ = 0;
             let totalTime = 0;
             let locationCount = 0;
+            
+            // Helper: Convert lat/lng (degrees) to Cartesian (x, y, z) on unit sphere
+            function toCartesian(lat, lng) {
+                const latRad = lat * Math.PI / 180;
+                const lngRad = lng * Math.PI / 180;
+                return {
+                    x: Math.cos(latRad) * Math.cos(lngRad),
+                    y: Math.cos(latRad) * Math.sin(lngRad),
+                    z: Math.sin(latRad)
+                };
+            }
+            
+            // Helper: Convert Cartesian (x, y, z) back to lat/lng (degrees)
+            function toLatLng(x, y, z) {
+                const lat = Math.atan2(z, Math.sqrt(x * x + y * y)) * 180 / Math.PI;
+                const lng = Math.atan2(y, x) * 180 / Math.PI;
+                return { lat, lng };
+            }
             
             // ============================================
             // PART 1: Historical data (before GPS cutoff)
@@ -2627,8 +2656,11 @@
                         continue;
                     }
                     
-                    totalWeightedLat += coords[0] * seconds;
-                    totalWeightedLng += coords[1] * seconds;
+                    // Convert to Cartesian and accumulate
+                    const cart = toCartesian(coords[0], coords[1]);
+                    totalWeightedX += cart.x * seconds;
+                    totalWeightedY += cart.y * seconds;
+                    totalWeightedZ += cart.z * seconds;
                     totalTime += seconds;
                     locationCount++;
                 }
@@ -2642,7 +2674,6 @@
                 const gpsStart = startDate > GPS_CUTOFF_DATE ? startDate : GPS_CUTOFF_DATE;
                 
                 // Filter GPS points within our date range
-                // Ensure timestamps are Date objects for comparison
                 const relevantPoints = gpsData.filter(point => {
                     const pointTime = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
                     return pointTime >= gpsStart && pointTime <= endDate;
@@ -2650,7 +2681,6 @@
                 
                 if (relevantPoints.length > 0) {
                     // Calculate time-weighted average of GPS points
-                    // Each point's weight is the time until the next point
                     for (let i = 0; i < relevantPoints.length; i++) {
                         const point = relevantPoints[i];
                         const nextPoint = relevantPoints[i + 1];
@@ -2667,22 +2697,24 @@
                         let duration;
                         if (nextPoint) {
                             const nextTime = nextPoint.timestamp instanceof Date ? nextPoint.timestamp : new Date(nextPoint.timestamp);
-                            duration = (nextTime - pointTime) / 1000; // in seconds
+                            duration = (nextTime - pointTime) / 1000;
                         } else {
-                            // Last point: count until endDate or now
                             const endTime = endDate > getAccurateNow() ? getAccurateNow() : endDate;
                             duration = (endTime - pointTime) / 1000;
                         }
                         
-                        // Skip if duration is negative, zero, or unreasonably large (> 30 days)
+                        // Skip if duration is invalid
                         if (duration <= 0 || duration > 30 * 24 * 60 * 60) continue;
                         
-                        totalWeightedLat += lat * duration;
-                        totalWeightedLng += lng * duration;
+                        // Convert to Cartesian and accumulate
+                        const cart = toCartesian(lat, lng);
+                        totalWeightedX += cart.x * duration;
+                        totalWeightedY += cart.y * duration;
+                        totalWeightedZ += cart.z * duration;
                         totalTime += duration;
                     }
                     
-                    // Count unique approximate locations (rounded to 2 decimal places)
+                    // Count unique approximate locations
                     const uniqueGPSLocations = new Set(
                         relevantPoints
                             .filter(p => !isNaN(parseFloat(p.latitude)) && !isNaN(parseFloat(p.longitude)))
@@ -2694,9 +2726,17 @@
             
             if (totalTime === 0) return null;
             
+            // Calculate average Cartesian coordinates
+            const avgX = totalWeightedX / totalTime;
+            const avgY = totalWeightedY / totalTime;
+            const avgZ = totalWeightedZ / totalTime;
+            
+            // Convert back to lat/lng
+            const result = toLatLng(avgX, avgY, avgZ);
+            
             return {
-                lat: totalWeightedLat / totalTime,
-                lng: totalWeightedLng / totalTime,
+                lat: result.lat,
+                lng: result.lng,
                 totalDays: totalTime / 86400,
                 locationCount: locationCount
             };
