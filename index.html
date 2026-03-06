@@ -1427,16 +1427,20 @@
                 const result = await response.json();
                 
                 if (result.success && result.data) {
-                    gpsData = result.data.map(point => ({
-                        timestamp: new Date(point.timestamp),
-                        latitude: parseFloat(point.latitude),
-                        longitude: parseFloat(point.longitude),
-                        accuracy: point.accuracy,
-                        speed: point.speed,
-                        motion: point.motion
-                    })).sort((a, b) => a.timestamp - b.timestamp);
+                    gpsData = result.data
+                        .filter(point => point.latitude && point.longitude) // Filter out invalid points
+                        .map(point => ({
+                            timestamp: new Date(point.timestamp),
+                            latitude: parseFloat(point.latitude),
+                            longitude: parseFloat(point.longitude),
+                            accuracy: parseFloat(point.accuracy) || 0,
+                            speed: parseFloat(point.speed) || 0,
+                            motion: point.motion || ''
+                        }))
+                        .filter(point => !isNaN(point.latitude) && !isNaN(point.longitude)) // Filter NaN coords
+                        .sort((a, b) => a.timestamp - b.timestamp);
                     
-                    console.log(`Loaded ${gpsData.length} GPS points`);
+                    console.log(`Loaded ${gpsData.length} valid GPS points`);
                     
                     // Cache GPS data
                     localStorage.setItem('pie_chart_gps_data', JSON.stringify(gpsData));
@@ -1447,10 +1451,16 @@
                 // Try loading from cache
                 const cached = localStorage.getItem('pie_chart_gps_data');
                 if (cached) {
-                    gpsData = JSON.parse(cached).map(point => ({
-                        ...point,
-                        timestamp: new Date(point.timestamp)
-                    }));
+                    try {
+                        gpsData = JSON.parse(cached).map(point => ({
+                            ...point,
+                            timestamp: new Date(point.timestamp)
+                        }));
+                        console.log(`Loaded ${gpsData.length} GPS points from cache`);
+                    } catch (e) {
+                        console.error('Error parsing GPS cache:', e);
+                        gpsData = [];
+                    }
                 }
             }
         }
@@ -2632,9 +2642,11 @@
                 const gpsStart = startDate > GPS_CUTOFF_DATE ? startDate : GPS_CUTOFF_DATE;
                 
                 // Filter GPS points within our date range
-                const relevantPoints = gpsData.filter(point => 
-                    point.timestamp >= gpsStart && point.timestamp <= endDate
-                );
+                // Ensure timestamps are Date objects for comparison
+                const relevantPoints = gpsData.filter(point => {
+                    const pointTime = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
+                    return pointTime >= gpsStart && pointTime <= endDate;
+                });
                 
                 if (relevantPoints.length > 0) {
                     // Calculate time-weighted average of GPS points
@@ -2643,27 +2655,38 @@
                         const point = relevantPoints[i];
                         const nextPoint = relevantPoints[i + 1];
                         
+                        // Ensure we have valid coordinates
+                        const lat = parseFloat(point.latitude);
+                        const lng = parseFloat(point.longitude);
+                        if (isNaN(lat) || isNaN(lng)) continue;
+                        
+                        // Ensure timestamp is a Date object
+                        const pointTime = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
+                        
                         // Calculate duration: time until next point, or until endDate if last point
                         let duration;
                         if (nextPoint) {
-                            duration = (nextPoint.timestamp - point.timestamp) / 1000; // in seconds
+                            const nextTime = nextPoint.timestamp instanceof Date ? nextPoint.timestamp : new Date(nextPoint.timestamp);
+                            duration = (nextTime - pointTime) / 1000; // in seconds
                         } else {
                             // Last point: count until endDate or now
                             const endTime = endDate > getAccurateNow() ? getAccurateNow() : endDate;
-                            duration = (endTime - point.timestamp) / 1000;
+                            duration = (endTime - pointTime) / 1000;
                         }
                         
-                        // Skip if duration is negative or zero
-                        if (duration <= 0) continue;
+                        // Skip if duration is negative, zero, or unreasonably large (> 30 days)
+                        if (duration <= 0 || duration > 30 * 24 * 60 * 60) continue;
                         
-                        totalWeightedLat += point.latitude * duration;
-                        totalWeightedLng += point.longitude * duration;
+                        totalWeightedLat += lat * duration;
+                        totalWeightedLng += lng * duration;
                         totalTime += duration;
                     }
                     
                     // Count unique approximate locations (rounded to 2 decimal places)
                     const uniqueGPSLocations = new Set(
-                        relevantPoints.map(p => `${p.latitude.toFixed(2)},${p.longitude.toFixed(2)}`)
+                        relevantPoints
+                            .filter(p => !isNaN(parseFloat(p.latitude)) && !isNaN(parseFloat(p.longitude)))
+                            .map(p => `${parseFloat(p.latitude).toFixed(2)},${parseFloat(p.longitude).toFixed(2)}`)
                     );
                     locationCount += uniqueGPSLocations.size;
                 }
@@ -2742,83 +2765,98 @@
         function updateCenterpoint() {
             if (!leafletMap || entries.length === 0) return;
             
-            const { startDate, endDate } = getMapDateRange();
-            const centerpoint = calculateCenterpoint(startDate, endDate);
-            
-            if (!centerpoint) {
-                document.getElementById('centerpoint-location').textContent = 'No data';
-                return;
-            }
-            
-            // Clear existing markers and trail
-            if (centerpointMarker) {
-                leafletMap.removeLayer(centerpointMarker);
-            }
-            clearTrail();
-            
-            // Custom icon for centerpoint
-            const centerpointIcon = L.divIcon({
-                className: 'centerpoint-icon',
-                html: `<div style="
-                    width: 20px;
-                    height: 20px;
-                    background: linear-gradient(135deg, #667eea, #764ba2);
-                    border: 3px solid #fff;
-                    border-radius: 50%;
-                    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                "></div>`,
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
-            });
-            
-            centerpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { icon: centerpointIcon })
-                .addTo(leafletMap);
-            
-            // Pan to centerpoint
-            leafletMap.setView([centerpoint.lat, centerpoint.lng], 5);
-            
-            // Get nearest city
-            const nearest = getNearestCity(centerpoint.lat, centerpoint.lng);
-            
-            // Calculate distance from childhood home
-            const distFromHome = getDistanceKm(centerpoint.lat, centerpoint.lng, CHILDHOOD_HOME[0], CHILDHOOD_HOME[1]);
-            const distFromHomeMiles = (distFromHome * 0.621371).toFixed(0);
-            
-            // Calculate distance from birthplace
-            const distFromBirth = getDistanceKm(centerpoint.lat, centerpoint.lng, BIRTHPLACE[0], BIRTHPLACE[1]);
-            const distFromBirthMiles = (distFromBirth * 0.621371).toFixed(0);
-            
-            // Update UI
-            document.getElementById('centerpoint-location').textContent = 
-                `${nearest.distance.toFixed(0)} mi from ${nearest.city}`;
-            document.getElementById('centerpoint-coords').textContent = 
-                `${centerpoint.lat.toFixed(4)}°, ${centerpoint.lng.toFixed(4)}°`;
-            document.getElementById('cp-distance-from-home').textContent = 
-                `${distFromHomeMiles} mi`;
-            document.getElementById('cp-distance-from-birth').textContent = 
-                `${distFromBirthMiles} mi`;
-            document.getElementById('cp-locations-count').textContent = 
-                centerpoint.locationCount;
-            
-            // Update GPS status indicator
-            const gpsStatus = document.getElementById('gps-status');
-            const { startDate: rangeStart, endDate: rangeEnd } = getMapDateRange();
-            const hasGPSInRange = gpsData.length > 0 && rangeEnd > GPS_CUTOFF_DATE;
-            
-            if (hasGPSInRange) {
-                const gpsPointsInRange = gpsData.filter(p => 
-                    p.timestamp >= rangeStart && p.timestamp <= rangeEnd
-                ).length;
-                gpsStatus.style.display = 'block';
-                document.getElementById('gps-point-count').textContent = 
-                    `${gpsPointsInRange} GPS points in range`;
-            } else {
-                gpsStatus.style.display = 'none';
-            }
-            
-            // Show trail if enabled
-            if (showTrail) {
-                drawTrail();
+            try {
+                const { startDate, endDate } = getMapDateRange();
+                const centerpoint = calculateCenterpoint(startDate, endDate);
+                
+                if (!centerpoint) {
+                    document.getElementById('centerpoint-location').textContent = 'No data for range';
+                    document.getElementById('centerpoint-coords').textContent = '--';
+                    document.getElementById('cp-distance-from-home').textContent = '--';
+                    document.getElementById('cp-distance-from-birth').textContent = '--';
+                    document.getElementById('cp-locations-count').textContent = '0';
+                    return;
+                }
+                
+                // Validate centerpoint values
+                if (isNaN(centerpoint.lat) || isNaN(centerpoint.lng)) {
+                    console.error('Invalid centerpoint coordinates:', centerpoint);
+                    document.getElementById('centerpoint-location').textContent = 'Calculation error';
+                    return;
+                }
+                
+                // Clear existing markers and trail
+                if (centerpointMarker) {
+                    leafletMap.removeLayer(centerpointMarker);
+                }
+                clearTrail();
+                
+                // Custom icon for centerpoint
+                const centerpointIcon = L.divIcon({
+                    className: 'centerpoint-icon',
+                    html: `<div style="
+                        width: 20px;
+                        height: 20px;
+                        background: linear-gradient(135deg, #667eea, #764ba2);
+                        border: 3px solid #fff;
+                        border-radius: 50%;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                    "></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+                
+                centerpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { icon: centerpointIcon })
+                    .addTo(leafletMap);
+                
+                // Pan to centerpoint
+                leafletMap.setView([centerpoint.lat, centerpoint.lng], 5);
+                
+                // Get nearest city
+                const nearest = getNearestCity(centerpoint.lat, centerpoint.lng);
+                
+                // Calculate distance from childhood home
+                const distFromHome = getDistanceKm(centerpoint.lat, centerpoint.lng, CHILDHOOD_HOME[0], CHILDHOOD_HOME[1]);
+                const distFromHomeMiles = (distFromHome * 0.621371).toFixed(0);
+                
+                // Calculate distance from birthplace
+                const distFromBirth = getDistanceKm(centerpoint.lat, centerpoint.lng, BIRTHPLACE[0], BIRTHPLACE[1]);
+                const distFromBirthMiles = (distFromBirth * 0.621371).toFixed(0);
+                
+                // Update UI
+                document.getElementById('centerpoint-location').textContent = 
+                    `${(nearest.distance * 0.621371).toFixed(0)} mi from ${nearest.city}`;
+                document.getElementById('centerpoint-coords').textContent = 
+                    `${centerpoint.lat.toFixed(4)}°, ${centerpoint.lng.toFixed(4)}°`;
+                document.getElementById('cp-distance-from-home').textContent = 
+                    `${distFromHomeMiles} mi`;
+                document.getElementById('cp-distance-from-birth').textContent = 
+                    `${distFromBirthMiles} mi`;
+                document.getElementById('cp-locations-count').textContent = 
+                    centerpoint.locationCount;
+                
+                // Update GPS status indicator
+                const gpsStatus = document.getElementById('gps-status');
+                const hasGPSInRange = gpsData.length > 0 && endDate > GPS_CUTOFF_DATE;
+                
+                if (hasGPSInRange) {
+                    const gpsPointsInRange = gpsData.filter(p => 
+                        p.timestamp >= startDate && p.timestamp <= endDate
+                    ).length;
+                    gpsStatus.style.display = 'block';
+                    document.getElementById('gps-point-count').textContent = 
+                        `${gpsPointsInRange} GPS points in range`;
+                } else {
+                    gpsStatus.style.display = 'none';
+                }
+                
+                // Show trail if enabled
+                if (showTrail) {
+                    drawTrail();
+                }
+            } catch (error) {
+                console.error('Error updating centerpoint:', error);
+                document.getElementById('centerpoint-location').textContent = 'Error - check console';
             }
         }
         
