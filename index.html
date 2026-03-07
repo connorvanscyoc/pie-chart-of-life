@@ -926,6 +926,8 @@
             
             #page-stats .stats-right {
                 flex: 0 0 320px;
+                /* Push down to align with Time Range dropdown (below chart tabs) */
+                margin-top: 52px; /* Height of tab-bar + its margin */
             }
             
             /* When stats-right is hidden, stats-left takes full width automatically via flex */
@@ -1001,6 +1003,7 @@
             /* STATS */
             #page-stats .stats-right {
                 flex: 0 0 350px;
+                margin-top: 52px; /* Preserve alignment with Time Range */
             }
             
             #page-stats .chart-container {
@@ -1023,12 +1026,8 @@
             #page-map .map-sidebar {
                 flex: 0 0 350px;
                 display: block;
-                margin-top: 0;
-                padding-top: 0;
-            }
-            
-            #page-map .map-sidebar .centerpoint-info:first-child {
-                margin-top: 0;
+                /* Push down to align with Time Range dropdown (below the "Time Range" label) */
+                margin-top: 20px; /* Height of control-label + margin */
             }
             
             #page-map .controls {
@@ -1058,10 +1057,12 @@
             
             #page-stats .stats-right {
                 flex: 0 0 380px;
+                margin-top: 52px; /* Preserve alignment with Time Range */
             }
             
             #page-map .map-sidebar {
                 flex: 0 0 400px;
+                margin-top: 20px; /* Preserve alignment with Time Range dropdown */
             }
         }
     </style>
