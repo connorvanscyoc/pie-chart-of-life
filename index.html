@@ -3370,27 +3370,8 @@
                 animationInterval = null;
             }
             
-            // If stopped at the end, keep animation marker as the end marker
-            // If stopped in the middle (paused), show the end marker again
-            const isAtEnd = animationIndex >= animationPoints.length - 1;
-            if (!isAtEnd && trailEndMarker && animationPoints.length > 0) {
-                // Re-add end marker if we paused in the middle
-                const lastPoint = animationPoints[animationPoints.length - 1];
-                const icon = L.divIcon({
-                    className: 'trail-end-dot',
-                    html: `<div style="
-                        width: 14px;
-                        height: 14px;
-                        background: linear-gradient(135deg, #667eea, #764ba2);
-                        border: 2px solid #fff;
-                        border-radius: 50%;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                    "></div>`,
-                    iconSize: [14, 14],
-                    iconAnchor: [7, 7]
-                });
-                trailEndMarker = L.marker([lastPoint.lat, lastPoint.lng], { icon: icon }).addTo(leafletMap);
-            }
+            // Keep the animation marker wherever it stopped - no endpoint dot
+            // The animation marker serves as the current position indicator
         }
         
         function updateAnimationFrame() {
@@ -3413,15 +3394,15 @@
             const animIcon = L.divIcon({
                 className: 'animation-marker',
                 html: `<div style="
-                    width: 24px;
-                    height: 24px;
+                    width: 14px;
+                    height: 14px;
                     background: linear-gradient(135deg, #667eea, #764ba2);
-                    border: 4px solid #fff;
+                    border: 2px solid #fff;
                     border-radius: 50%;
-                    box-shadow: 0 2px 15px rgba(102, 126, 234, 0.6);
+                    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.5);
                 "></div>`,
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
+                iconSize: [14, 14],
+                iconAnchor: [7, 7]
             });
             
             animationMarker = L.marker([point.lat, point.lng], { icon: animIcon, zIndexOffset: 1000 })
