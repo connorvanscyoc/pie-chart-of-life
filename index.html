@@ -976,10 +976,6 @@
                         <div id="cp-distance-from-birth" class="cp-stat-value">--</div>
                         <div class="cp-stat-label">From Birthplace</div>
                     </div>
-                    <div class="cp-stat">
-                        <div id="cp-locations-count" class="cp-stat-value">--</div>
-                        <div class="cp-stat-label">Locations</div>
-                    </div>
                 </div>
                 <div id="gps-status" style="margin-top: 15px; padding: 10px; background: rgba(107, 203, 119, 0.1); border-radius: 8px; display: none;">
                     <div style="display: flex; align-items: center; gap: 8px;">
@@ -1250,6 +1246,7 @@
         let centerpointMarker = null;
         let trailLine = null;
         let trailMarkers = [];
+        let trailEndMarker = null; // Separate reference to end dot for animation
         let showTrail = false;
         let trailToggleInitialized = false;
         let animationPoints = [];
@@ -2814,7 +2811,6 @@
                     document.getElementById('centerpoint-coords').textContent = '--';
                     document.getElementById('cp-distance-from-home').textContent = '--';
                     document.getElementById('cp-distance-from-birth').textContent = '--';
-                    document.getElementById('cp-locations-count').textContent = '0';
                     return;
                 }
                 
@@ -2828,26 +2824,30 @@
                 // Clear existing markers and trail
                 if (centerpointMarker) {
                     leafletMap.removeLayer(centerpointMarker);
+                    centerpointMarker = null;
                 }
                 clearTrail();
                 
-                // Custom icon for centerpoint
-                const centerpointIcon = L.divIcon({
-                    className: 'centerpoint-icon',
-                    html: `<div style="
-                        width: 20px;
-                        height: 20px;
-                        background: linear-gradient(135deg, #667eea, #764ba2);
-                        border: 3px solid #fff;
-                        border-radius: 50%;
-                        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                    "></div>`,
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
-                });
-                
-                centerpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { icon: centerpointIcon })
-                    .addTo(leafletMap);
+                // Only show centerpoint marker when trail is OFF
+                // When trail is ON, the trail end dot serves as the marker
+                if (!showTrail) {
+                    const centerpointIcon = L.divIcon({
+                        className: 'centerpoint-icon',
+                        html: `<div style="
+                            width: 16px;
+                            height: 16px;
+                            background: linear-gradient(135deg, #667eea, #764ba2);
+                            border: 2px solid #fff;
+                            border-radius: 50%;
+                            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                        "></div>`,
+                        iconSize: [16, 16],
+                        iconAnchor: [8, 8]
+                    });
+                    
+                    centerpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { icon: centerpointIcon })
+                        .addTo(leafletMap);
+                }
                 
                 // Pan to centerpoint
                 leafletMap.setView([centerpoint.lat, centerpoint.lng], 5);
@@ -2872,8 +2872,6 @@
                     `${distFromHomeMiles} mi`;
                 document.getElementById('cp-distance-from-birth').textContent = 
                     `${distFromBirthMiles} mi`;
-                document.getElementById('cp-locations-count').textContent = 
-                    centerpoint.locationCount;
                 
                 // Update GPS status indicator
                 const gpsStatus = document.getElementById('gps-status');
@@ -2912,6 +2910,12 @@
             }
             trailMarkers.forEach(m => leafletMap.removeLayer(m));
             trailMarkers = [];
+            
+            // Clear end marker
+            if (trailEndMarker) {
+                leafletMap.removeLayer(trailEndMarker);
+                trailEndMarker = null;
+            }
             
             // Clear animation marker
             if (animationMarker) {
@@ -3200,22 +3204,23 @@
                 
                 if (shouldLabel) {
                     if (isDot) {
-                        // End marker: just a small dot
+                        // End marker: medium-sized dot (between 8px and 20px)
                         const icon = L.divIcon({
                             className: 'trail-end-dot',
                             html: `<div style="
-                                width: 8px;
-                                height: 8px;
-                                background: #667eea;
+                                width: 14px;
+                                height: 14px;
+                                background: linear-gradient(135deg, #667eea, #764ba2);
                                 border: 2px solid #fff;
                                 border-radius: 50%;
-                                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+                                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
                             "></div>`,
-                            iconSize: null,
-                            iconAnchor: [6, 6]
+                            iconSize: [14, 14],
+                            iconAnchor: [7, 7]
                         });
-                        const marker = L.marker([point.lat, point.lng], { icon: icon }).addTo(leafletMap);
-                        trailMarkers.push(marker);
+                        trailEndMarker = L.marker([point.lat, point.lng], { icon: icon }).addTo(leafletMap);
+                        // Also add to trailMarkers for general cleanup
+                        trailMarkers.push(trailEndMarker);
                     } else {
                         // Text label: auto-sized
                         const icon = L.divIcon({
@@ -3327,6 +3332,11 @@
             animationPlaying = true;
             document.getElementById('play-btn').textContent = '⏸ Pause';
             
+            // Hide the end marker during animation
+            if (trailEndMarker) {
+                leafletMap.removeLayer(trailEndMarker);
+            }
+            
             // If at end, restart
             if (animationIndex >= animationPoints.length - 1) {
                 animationIndex = 0;
@@ -3341,6 +3351,7 @@
                 animationIndex++;
                 
                 if (animationIndex >= animationPoints.length) {
+                    // Animation complete - keep animation marker at end
                     stopAnimation();
                     animationIndex = animationPoints.length - 1;
                     return;
@@ -3357,6 +3368,28 @@
             if (animationInterval) {
                 clearInterval(animationInterval);
                 animationInterval = null;
+            }
+            
+            // If stopped at the end, keep animation marker as the end marker
+            // If stopped in the middle (paused), show the end marker again
+            const isAtEnd = animationIndex >= animationPoints.length - 1;
+            if (!isAtEnd && trailEndMarker && animationPoints.length > 0) {
+                // Re-add end marker if we paused in the middle
+                const lastPoint = animationPoints[animationPoints.length - 1];
+                const icon = L.divIcon({
+                    className: 'trail-end-dot',
+                    html: `<div style="
+                        width: 14px;
+                        height: 14px;
+                        background: linear-gradient(135deg, #667eea, #764ba2);
+                        border: 2px solid #fff;
+                        border-radius: 50%;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    "></div>`,
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                });
+                trailEndMarker = L.marker([lastPoint.lat, lastPoint.lng], { icon: icon }).addTo(leafletMap);
             }
         }
         
