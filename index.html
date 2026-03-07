@@ -819,18 +819,9 @@
             }
             
             .container {
-                max-width: none;
+                max-width: 1200px;
                 margin-left: 100px;
-                padding: 20px 40px;
-            }
-            
-            /* Ensure hidden pages stay hidden */
-            .page {
-                display: none !important;
-            }
-            
-            .page.active {
-                display: block !important;
+                padding: 20px 30px;
             }
             
             /* Sidebar navigation */
@@ -878,8 +869,18 @@
             }
             
             /* ============================================
-               HOME PAGE - Side by side layout
+               HOME PAGE
                ============================================ */
+            #page-home header {
+                text-align: center;
+                margin-bottom: 10px;
+            }
+            
+            #page-home .sync-status {
+                text-align: center;
+                margin-bottom: 20px;
+            }
+            
             .home-content {
                 display: flex;
                 gap: 40px;
@@ -887,16 +888,16 @@
             }
             
             .home-left {
-                flex: 0 0 400px;
+                flex: 0 0 380px;
             }
             
             .home-right {
                 flex: 1;
-                max-width: 500px;
+                max-width: 450px;
             }
             
             #page-home .current-card {
-                margin-bottom: 20px;
+                margin-bottom: 15px;
             }
             
             #page-home .gps-btn {
@@ -907,12 +908,8 @@
                 grid-template-columns: repeat(3, 1fr);
             }
             
-            #page-home .search-container {
-                max-width: none;
-            }
-            
             /* ============================================
-               STATS PAGE - Compact layout
+               STATS PAGE - Simple two-column below summary
                ============================================ */
             #page-stats .summary-grid {
                 display: grid;
@@ -921,232 +918,148 @@
                 margin-bottom: 15px;
             }
             
-            #page-stats #chart-tabs {
-                margin-bottom: 10px;
+            #page-stats .stats-main {
+                display: flex;
+                gap: 25px;
+                align-items: flex-start;
             }
             
-            #page-stats .controls {
-                flex-wrap: nowrap;
-                margin-bottom: 10px;
+            #page-stats .stats-left {
+                flex: 1;
+                min-width: 0;
             }
             
-            #page-stats .date-range-controls {
-                margin-bottom: 10px;
+            #page-stats .stats-right {
+                flex: 0 0 320px;
             }
             
-            #page-stats #stats-content {
-                display: grid;
-                grid-template-columns: 1fr 320px;
-                gap: 20px;
-            }
+            /* When stats-right is hidden, stats-left takes full width automatically via flex */
             
             #page-stats #top-locations-card {
-                grid-column: 2;
-                grid-row: 1 / span 10;
                 position: sticky;
                 top: 20px;
-                align-self: start;
-                max-height: calc(100vh - 60px);
+                max-height: calc(100vh - 200px);
                 overflow-y: auto;
             }
             
-            #page-stats .stat-card {
-                margin-bottom: 10px;
+            #page-stats .chart-container {
+                height: 400px;
             }
             
-            #page-stats .chart-container {
-                height: 350px;
+            /* Ensure chart tabs stay in place */
+            #page-stats .tab-bar {
+                margin-bottom: 15px;
+            }
+            
+            #page-stats .controls {
+                margin-bottom: 15px;
+            }
+            
+            #page-stats .date-range-controls {
+                margin-bottom: 15px;
             }
             
             /* ============================================
-               MAP PAGE - Compact layout
+               MAP PAGE - Simple stacked layout
                ============================================ */
-            #page-map header {
-                margin-bottom: 10px;
+            #page-map .map-layout {
+                display: block; /* Stack on smaller screens */
+            }
+            
+            #page-map .map-main {
+                margin-bottom: 20px;
             }
             
             #page-map .controls {
-                margin-bottom: 10px;
-                max-width: 400px;
-            }
-            
-            #page-map .date-range-controls {
+                max-width: 350px;
                 margin-bottom: 10px;
             }
             
             #page-map #map-container {
-                height: 400px;
+                height: 450px;
                 border-radius: 12px;
-                margin-bottom: 15px;
+            }
+            
+            #page-map .map-sidebar {
+                display: flex;
+                gap: 20px;
             }
             
             #page-map .centerpoint-info {
-                display: inline-block;
-                vertical-align: top;
-                width: calc(50% - 10px);
-                margin-right: 10px;
-                padding: 15px;
-            }
-            
-            #page-map .centerpoint-info:last-child {
-                margin-right: 0;
-                margin-left: 10px;
-            }
-            
-            /* Compact the info boxes */
-            #page-map .centerpoint-title {
-                font-size: 0.8rem;
-                margin-bottom: 8px;
-            }
-            
-            #page-map .centerpoint-location {
-                font-size: 1.1rem;
-            }
-            
-            #page-map .centerpoint-stats {
-                display: flex;
-                gap: 15px;
-                margin-top: 10px;
-            }
-            
-            #page-map .cp-stat {
                 flex: 1;
-            }
-            
-            #page-map .cp-stat-value {
-                font-size: 1.1rem;
-            }
-            
-            #page-map .cp-stat-label {
-                font-size: 0.65rem;
-            }
-            
-            #page-map #animation-controls {
-                margin-top: 10px !important;
+                padding: 15px;
             }
         }
         
         /* Desktop (1024px+) */
         @media (min-width: 1024px) {
             .container {
-                margin-left: 100px;
+                max-width: 1300px;
                 padding: 20px 40px;
             }
             
-            h1 {
-                font-size: 2.2rem;
-            }
-            
-            /* ============================================
-               HOME PAGE - Better proportions
-               ============================================ */
-            .home-content {
-                max-width: 900px;
-            }
-            
+            /* HOME */
             .home-left {
-                flex: 0 0 420px;
+                flex: 0 0 400px;
             }
             
-            #page-home .quick-locations {
-                grid-template-columns: repeat(3, 1fr);
-            }
-            
-            /* ============================================
-               STATS PAGE - More space for chart
-               ============================================ */
-            #page-stats #stats-content {
-                grid-template-columns: 1fr 350px;
-                gap: 25px;
-            }
-            
-            #page-stats .chart-container {
-                height: 400px;
-            }
-            
-            /* ============================================
-               MAP PAGE - Side by side with info
-               ============================================ */
-            #page-map.active {
-                display: grid !important;
-                grid-template-columns: 1fr 350px;
-                grid-template-rows: auto auto 1fr;
-                gap: 15px;
-                grid-template-areas:
-                    "header header"
-                    "controls info1"
-                    "map info2";
-                align-items: start;
-            }
-            
-            #page-map header {
-                grid-area: header;
-            }
-            
-            #page-map .controls {
-                grid-area: controls;
-                align-self: start;
-            }
-            
-            #page-map #map-date-controls {
-                display: none; /* Hide when not in custom mode - show via JS */
-            }
-            
-            #page-map #map-date-controls.show {
-                grid-area: controls;
-                margin-top: 70px;
-            }
-            
-            #page-map #map-container {
-                grid-area: map;
-                height: calc(100vh - 180px);
-                min-height: 400px;
-                max-height: 600px;
-            }
-            
-            #page-map .centerpoint-info {
-                width: 100%;
-                display: block;
-                margin: 0;
-            }
-            
-            #page-map .centerpoint-info:first-of-type {
-                grid-area: info1;
-            }
-            
-            #page-map .centerpoint-info:last-of-type {
-                grid-area: info2;
-                align-self: start;
-            }
-        }
-        
-        /* Large desktop (1400px+) */
-        @media (min-width: 1400px) {
-            .container {
-                max-width: 1400px;
-                margin-left: auto;
-                margin-right: auto;
-                padding-left: 120px;
-            }
-            
-            .home-content {
-                max-width: 1000px;
-            }
-            
-            #page-stats #stats-content {
-                grid-template-columns: 1fr 380px;
+            /* STATS */
+            #page-stats .stats-right {
+                flex: 0 0 350px;
             }
             
             #page-stats .chart-container {
                 height: 450px;
             }
             
-            #page-map.active {
-                grid-template-columns: 1fr 400px;
+            /* MAP - Side by side layout */
+            #page-map .map-layout {
+                display: flex;
+                gap: 25px;
+                align-items: stretch;
+            }
+            
+            #page-map .map-main {
+                flex: 1;
+                min-width: 0;
+                margin-bottom: 0;
+            }
+            
+            #page-map .map-sidebar {
+                flex: 0 0 350px;
+                display: block; /* Stack info boxes vertically on sidebar */
+            }
+            
+            #page-map .controls {
+                max-width: none;
             }
             
             #page-map #map-container {
-                max-height: 700px;
+                height: calc(100vh - 220px);
+                min-height: 400px;
+                max-height: 650px;
+            }
+            
+            #page-map .centerpoint-info {
+                margin-bottom: 15px;
+            }
+        }
+        
+        /* Large desktop (1400px+) */
+        @media (min-width: 1400px) {
+            .container {
+                max-width: 1500px;
+                margin-left: auto;
+                margin-right: auto;
+                padding-left: 120px;
+            }
+            
+            #page-stats .stats-right {
+                flex: 0 0 380px;
+            }
+            
+            #page-map .map-sidebar {
+                flex: 0 0 400px;
             }
         }
     </style>
@@ -1157,11 +1070,12 @@
         <div id="page-home" class="page active">
             <header>
                 <h1>🥧 Pie Chart of Life</h1>
-                <div id="sync-status" class="sync-status">
-                    <span id="sync-text">Connecting...</span>
-                    <button class="refresh-btn" id="refresh-btn" title="Refresh">🔄</button>
-                </div>
             </header>
+            
+            <div id="sync-status" class="sync-status">
+                <span id="sync-text">Connecting...</span>
+                <button class="refresh-btn" id="refresh-btn" title="Refresh">🔄</button>
+            </div>
             
             <div class="home-content">
                 <div class="home-left">
@@ -1207,61 +1121,67 @@
             <div id="stats-content">
                 <div class="summary-grid" id="summary-grid"></div>
                 
-                <div class="tab-bar" id="chart-tabs">
-                    <button class="tab-btn active" data-chart="pie">🥧 Pie</button>
-                    <button class="tab-btn" data-chart="line">📈 Line</button>
-                    <button class="tab-btn" data-chart="cumulative">📊 Cumulative</button>
-                    <button class="tab-btn" data-chart="bar">📊 Bar</button>
-                </div>
-                
-                <div class="controls" id="time-controls">
-                    <div class="control-group">
-                        <label class="control-label">Time Range</label>
-                        <select class="control-select" id="time-range-select">
-                            <option value="all">All Time</option>
-                            <option value="year">Specific Year</option>
-                            <option value="custom">Custom Range</option>
-                        </select>
+                <div class="stats-main">
+                    <div class="stats-left">
+                        <div class="tab-bar" id="chart-tabs">
+                            <button class="tab-btn active" data-chart="pie">🥧 Pie</button>
+                            <button class="tab-btn" data-chart="line">📈 Line</button>
+                            <button class="tab-btn" data-chart="cumulative">📊 Cumulative</button>
+                            <button class="tab-btn" data-chart="bar">📊 Bar</button>
+                        </div>
+                        
+                        <div class="controls" id="time-controls">
+                            <div class="control-group">
+                                <label class="control-label">Time Range</label>
+                                <select class="control-select" id="time-range-select">
+                                    <option value="all">All Time</option>
+                                    <option value="year">Specific Year</option>
+                                    <option value="custom">Custom Range</option>
+                                </select>
+                            </div>
+                            <div class="control-group" id="year-select-group" style="display:none;">
+                                <label class="control-label">Year</label>
+                                <select class="control-select" id="year-select"></select>
+                            </div>
+                        </div>
+                        
+                        <div class="date-range-controls" id="date-range-controls">
+                            <div class="control-group">
+                                <label class="control-label">From (MM/DD/YYYY)</label>
+                                <input type="text" class="date-text-input" id="date-from-text" placeholder="MM/DD/YYYY">
+                                <input type="date" class="control-input" id="date-from" style="display:none;">
+                            </div>
+                            <div class="control-group">
+                                <label class="control-label">To (MM/DD/YYYY)</label>
+                                <input type="text" class="date-text-input" id="date-to-text" placeholder="MM/DD/YYYY">
+                                <input type="date" class="control-input" id="date-to" style="display:none;">
+                            </div>
+                        </div>
+                        
+                        <!-- Location toggles for line/cumulative charts -->
+                        <div id="line-controls" style="display:none;">
+                            <div class="section-title">Locations</div>
+                            <div class="location-toggles" id="location-toggles"></div>
+                            <div class="location-search-container">
+                                <input type="text" class="location-search-input" id="location-search" placeholder="Add another location...">
+                                <div class="location-search-results" id="location-search-results"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="chart-container">
+                                <canvas id="stats-chart"></canvas>
+                            </div>
+                        </div>
                     </div>
-                    <div class="control-group" id="year-select-group" style="display:none;">
-                        <label class="control-label">Year</label>
-                        <select class="control-select" id="year-select"></select>
+                    
+                    <div class="stats-right">
+                        <div class="stat-card" id="top-locations-card">
+                            <div class="section-title">Top Locations</div>
+                            <div id="top-locations-list"></div>
+                            <button class="show-all-btn" id="show-all-btn">Show All Locations</button>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="date-range-controls" id="date-range-controls">
-                    <div class="control-group">
-                        <label class="control-label">From (MM/DD/YYYY)</label>
-                        <input type="text" class="date-text-input" id="date-from-text" placeholder="MM/DD/YYYY">
-                        <input type="date" class="control-input" id="date-from" style="display:none;">
-                    </div>
-                    <div class="control-group">
-                        <label class="control-label">To (MM/DD/YYYY)</label>
-                        <input type="text" class="date-text-input" id="date-to-text" placeholder="MM/DD/YYYY">
-                        <input type="date" class="control-input" id="date-to" style="display:none;">
-                    </div>
-                </div>
-                
-                <!-- Location toggles for line/cumulative charts -->
-                <div id="line-controls" style="display:none;">
-                    <div class="section-title">Locations</div>
-                    <div class="location-toggles" id="location-toggles"></div>
-                    <div class="location-search-container">
-                        <input type="text" class="location-search-input" id="location-search" placeholder="Add another location...">
-                        <div class="location-search-results" id="location-search-results"></div>
-                    </div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="chart-container">
-                        <canvas id="stats-chart"></canvas>
-                    </div>
-                </div>
-                
-                <div class="stat-card" id="top-locations-card">
-                    <div class="section-title">Top Locations</div>
-                    <div id="top-locations-list"></div>
-                    <button class="show-all-btn" id="show-all-btn">Show All Locations</button>
                 </div>
             </div>
         </div>
@@ -1282,80 +1202,86 @@
                 <h1>🗺️ Centerpoint</h1>
             </header>
             
-            <div class="controls">
-                <div class="control-group">
-                    <label class="control-label">Time Range</label>
-                    <select class="control-select" id="map-time-range">
-                        <option value="all">All Time (Lifetime)</option>
-                        <option value="year">Specific Year</option>
-                        <option value="custom">Custom Range</option>
-                    </select>
-                </div>
-                <div class="control-group" id="map-year-group" style="display:none;">
-                    <label class="control-label">Year</label>
-                    <select class="control-select" id="map-year-select"></select>
-                </div>
-            </div>
-            
-            <div class="date-range-controls" id="map-date-controls">
-                <div class="control-group">
-                    <label class="control-label">From</label>
-                    <input type="text" class="date-text-input" id="map-date-from" placeholder="MM/DD/YYYY">
-                </div>
-                <div class="control-group">
-                    <label class="control-label">To</label>
-                    <input type="text" class="date-text-input" id="map-date-to" placeholder="MM/DD/YYYY">
-                </div>
-            </div>
-            
-            <div id="map-container"></div>
-            
-            <div class="centerpoint-info">
-                <div class="centerpoint-title">Your Centerpoint</div>
-                <div id="centerpoint-location" class="centerpoint-location">Calculating...</div>
-                <div id="centerpoint-coords" class="centerpoint-coords"></div>
-                
-                <div class="centerpoint-stats">
-                    <div class="cp-stat">
-                        <div id="cp-distance-from-home" class="cp-stat-value">--</div>
-                        <div class="cp-stat-label">From Childhood Home</div>
-                    </div>
-                    <div class="cp-stat">
-                        <div id="cp-distance-from-birth" class="cp-stat-value">--</div>
-                        <div class="cp-stat-label">From Birthplace</div>
-                    </div>
-                </div>
-                <div id="gps-status" style="margin-top: 15px; padding: 10px; background: rgba(107, 203, 119, 0.1); border-radius: 8px; display: none;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 1.2rem;">📡</span>
-                        <div>
-                            <div style="font-size: 0.85rem; color: #6bcb77; font-weight: 600;">Live GPS Active</div>
-                            <div id="gps-point-count" style="font-size: 0.75rem; color: #888;">0 points</div>
+            <div class="map-layout">
+                <div class="map-main">
+                    <div class="controls">
+                        <div class="control-group">
+                            <label class="control-label">Time Range</label>
+                            <select class="control-select" id="map-time-range">
+                                <option value="all">All Time (Lifetime)</option>
+                                <option value="year">Specific Year</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </div>
+                        <div class="control-group" id="map-year-group" style="display:none;">
+                            <label class="control-label">Year</label>
+                            <select class="control-select" id="map-year-select"></select>
                         </div>
                     </div>
-                </div>
-            </div>
-            
-            <div class="centerpoint-info">
-                <div class="centerpoint-title">Historical Trail</div>
-                <div class="trail-toggle">
-                    <button class="tab-btn active" id="trail-off-btn">Off</button>
-                    <button class="tab-btn" id="trail-on-btn">Show Trail</button>
-                </div>
-                
-                <div id="animation-controls" style="display:none; margin-top: 15px;">
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <button id="play-btn" class="tab-btn" style="flex: 0 0 auto; padding: 8px 20px;">▶ Play</button>
-                        <div style="flex: 1; text-align: center;">
-                            <div id="animation-date" style="font-size: 1.1rem; font-weight: 600; color: #667eea;">--</div>
+                    
+                    <div class="date-range-controls" id="map-date-controls">
+                        <div class="control-group">
+                            <label class="control-label">From</label>
+                            <input type="text" class="date-text-input" id="map-date-from" placeholder="MM/DD/YYYY">
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label">To</label>
+                            <input type="text" class="date-text-input" id="map-date-to" placeholder="MM/DD/YYYY">
                         </div>
                     </div>
-                    <div style="margin-top: 10px;">
-                        <input type="range" id="animation-slider" min="0" max="100" value="0" style="width: 100%; accent-color: #667eea;">
+                    
+                    <div id="map-container"></div>
+                </div>
+                
+                <div class="map-sidebar">
+                    <div class="centerpoint-info">
+                        <div class="centerpoint-title">Your Centerpoint</div>
+                        <div id="centerpoint-location" class="centerpoint-location">Calculating...</div>
+                        <div id="centerpoint-coords" class="centerpoint-coords"></div>
+                        
+                        <div class="centerpoint-stats">
+                            <div class="cp-stat">
+                                <div id="cp-distance-from-home" class="cp-stat-value">--</div>
+                                <div class="cp-stat-label">From Childhood Home</div>
+                            </div>
+                            <div class="cp-stat">
+                                <div id="cp-distance-from-birth" class="cp-stat-value">--</div>
+                                <div class="cp-stat-label">From Birthplace</div>
+                            </div>
+                        </div>
+                        <div id="gps-status" style="margin-top: 15px; padding: 10px; background: rgba(107, 203, 119, 0.1); border-radius: 8px; display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 1.2rem;">📡</span>
+                                <div>
+                                    <div style="font-size: 0.85rem; color: #6bcb77; font-weight: 600;">Live GPS Active</div>
+                                    <div id="gps-point-count" style="font-size: 0.75rem; color: #888;">0 points</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #888; margin-top: 5px;">
-                        <span id="animation-start-label">Start</span>
-                        <span id="animation-end-label">Now</span>
+                    
+                    <div class="centerpoint-info">
+                        <div class="centerpoint-title">Historical Trail</div>
+                        <div class="trail-toggle">
+                            <button class="tab-btn active" id="trail-off-btn">Off</button>
+                            <button class="tab-btn" id="trail-on-btn">Show Trail</button>
+                        </div>
+                        
+                        <div id="animation-controls" style="display:none; margin-top: 15px;">
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <button id="play-btn" class="tab-btn" style="flex: 0 0 auto; padding: 8px 20px;">▶ Play</button>
+                                <div style="flex: 1; text-align: center;">
+                                    <div id="animation-date" style="font-size: 1.1rem; font-weight: 600; color: #667eea;">--</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <input type="range" id="animation-slider" min="0" max="100" value="0" style="width: 100%; accent-color: #667eea;">
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #888; margin-top: 5px;">
+                                <span id="animation-start-label">Start</span>
+                                <span id="animation-end-label">Now</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2264,6 +2190,12 @@
             const isLineOrCumulative = activeChartType === 'line' || activeChartType === 'cumulative';
             document.getElementById('line-controls').style.display = isLineOrCumulative ? 'block' : 'none';
             document.getElementById('time-controls').style.display = 'flex';
+            
+            // Hide entire stats-right container for non-pie charts
+            const statsRight = document.querySelector('.stats-right');
+            if (statsRight) {
+                statsRight.style.display = activeChartType === 'pie' ? 'block' : 'none';
+            }
             document.getElementById('top-locations-card').style.display = activeChartType === 'pie' ? 'block' : 'none';
             
             const timeRangeSelect = document.getElementById('time-range-select');
