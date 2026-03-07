@@ -1689,6 +1689,16 @@
             
             localStorage.setItem('pie_chart_entries', JSON.stringify(entries));
             
+            // If user is on stats page, load/refresh the stats
+            if (document.getElementById('page-stats').classList.contains('active')) {
+                loadStats();
+            }
+            
+            // If user is on map page, load/refresh the map
+            if (document.getElementById('page-map').classList.contains('active')) {
+                loadMap();
+            }
+            
             // Also fetch GPS data if webhook URL is configured
             await fetchGPSData();
         }
@@ -3321,11 +3331,22 @@
             // Step 2: Generate trail points at sampled intervals
             // Aggressive sampling for performance - the visual difference is minimal
             let stepDays = 1;
+            let useMinutes = false;
+            let stepMinutes = 5;
+            
             if (totalDays > 1825) stepDays = 14;      // > 5 years: bi-weekly
             else if (totalDays > 730) stepDays = 7;   // 2-5 years: weekly
             else if (totalDays > 180) stepDays = 3;   // 6mo-2yr: every 3 days
             else if (totalDays > 60) stepDays = 2;    // 2-6mo: every 2 days
-            // < 60 days: daily
+            else if (totalDays > 31) stepDays = 1;    // 1-2mo: daily
+            else {
+                // <= 31 days: use minute intervals
+                useMinutes = true;
+                if (totalDays > 14) stepMinutes = 60;       // 2-4 weeks: hourly
+                else if (totalDays > 7) stepMinutes = 30;   // 1-2 weeks: every 30 min
+                else if (totalDays > 3) stepMinutes = 15;   // 3-7 days: every 15 min
+                else stepMinutes = 5;                        // <= 3 days: every 5 min
+            }
             
             // Helper to calculate centerpoint at a given time
             function getCenterpointAt(targetDate) {
@@ -3358,7 +3379,12 @@
             }
             
             let currentDate = new Date(effectiveStart);
-            currentDate.setDate(currentDate.getDate() + 1);
+            if (useMinutes) {
+                // Start at first interval
+                currentDate.setMinutes(currentDate.getMinutes() + stepMinutes);
+            } else {
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
             
             while (currentDate <= effectiveEnd) {
                 const cp = getCenterpointAt(currentDate);
@@ -3372,7 +3398,11 @@
                         year: currentDate.getFullYear()
                     });
                 }
-                currentDate.setDate(currentDate.getDate() + stepDays);
+                if (useMinutes) {
+                    currentDate.setMinutes(currentDate.getMinutes() + stepMinutes);
+                } else {
+                    currentDate.setDate(currentDate.getDate() + stepDays);
+                }
             }
             
             // Add final point
@@ -3443,7 +3473,8 @@
                                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             
             const labelsPlaced = new Set();
-            const isVeryShortRange = totalDays <= 90; // < 3 months
+            const isVeryShortRange = totalDays <= 90 && totalDays > 31; // 1-3 months
+            const isMinuteRange = totalDays <= 31; // Using minute intervals
             const isYearView = totalDays > 300 && totalDays <= 400; // Roughly a year
             const isMultiYear = totalDays > 400;
             
@@ -3464,10 +3495,51 @@
                 
                 if (isStart) {
                     shouldLabel = true;
-                    label = monthNames[point.month];
+                    if (isMinuteRange && totalDays <= 7) {
+                        // Very short range: show date and time
+                        const hours = point.date.getHours();
+                        const mins = point.date.getMinutes();
+                        const ampm = hours >= 12 ? 'pm' : 'am';
+                        const h = hours % 12 || 12;
+                        label = `${point.month + 1}/${point.day} ${h}${ampm}`;
+                    } else {
+                        label = monthNames[point.month];
+                    }
                 } else if (isEnd) {
                     shouldLabel = true;
                     isDot = true;
+                } else if (isMinuteRange) {
+                    // <= 31 days with minute intervals
+                    if (totalDays <= 3) {
+                        // Every 3-6 hours for very short ranges
+                        const pointsPerLabel = Math.max(1, Math.floor(180 / stepMinutes)); // Every ~3 hours
+                        if (i % pointsPerLabel === 0 && i > 0) {
+                            shouldLabel = true;
+                            const hours = point.date.getHours();
+                            const ampm = hours >= 12 ? 'pm' : 'am';
+                            const h = hours % 12 || 12;
+                            label = `${h}${ampm}`;
+                            // Add date if it's a new day
+                            if (i > 0 && trailPoints[i-1].day !== point.day) {
+                                label = `${point.month + 1}/${point.day}`;
+                            }
+                        }
+                    } else if (totalDays <= 7) {
+                        // Label each day
+                        const dayKey = `${point.year}-${point.month}-${point.day}`;
+                        if (!labelsPlaced.has(dayKey)) {
+                            shouldLabel = true;
+                            label = `${point.month + 1}/${point.day}`;
+                            labelsPlaced.add(dayKey);
+                        }
+                    } else {
+                        // Label every few days
+                        const pointsPerWeek = Math.max(1, Math.round(trailPoints.length / (totalDays / 7)));
+                        if (i % pointsPerWeek === 0 && i > 0) {
+                            shouldLabel = true;
+                            label = `${point.month + 1}/${point.day}`;
+                        }
+                    }
                 } else if (isVeryShortRange) {
                     // < 3 months: label every ~7 days
                     const pointsPerWeek = Math.max(1, Math.round(7 / Math.max(1, labelStep)));
