@@ -815,13 +815,22 @@
         /* Tablet and up (768px+) */
         @media (min-width: 768px) {
             body {
-                padding-bottom: 20px; /* Remove extra bottom padding for nav */
+                padding-bottom: 20px;
             }
             
             .container {
                 max-width: none;
-                margin-left: 100px; /* Space for sidebar */
+                margin-left: 100px;
                 padding: 20px 40px;
+            }
+            
+            /* Ensure hidden pages stay hidden */
+            .page {
+                display: none !important;
+            }
+            
+            .page.active {
+                display: block !important;
             }
             
             /* Sidebar navigation */
@@ -861,67 +870,114 @@
             /* Header */
             header {
                 text-align: left;
-                margin-bottom: 30px;
+                margin-bottom: 20px;
             }
             
             h1 {
-                font-size: 2.2rem;
+                font-size: 2rem;
             }
             
-            /* Timer page - centered hero */
+            /* ============================================
+               HOME PAGE - Side by side layout
+               ============================================ */
+            .home-content {
+                display: flex;
+                gap: 40px;
+                align-items: flex-start;
+            }
+            
+            .home-left {
+                flex: 0 0 400px;
+            }
+            
+            .home-right {
+                flex: 1;
+                max-width: 500px;
+            }
+            
             #page-home .current-card {
-                max-width: 500px;
-                margin: 0 auto 30px auto;
-            }
-            
-            #page-home .quick-locations {
-                max-width: 600px;
-                grid-template-columns: repeat(4, 1fr);
-            }
-            
-            #page-home .search-container {
-                max-width: 500px;
+                margin-bottom: 20px;
             }
             
             #page-home .gps-btn {
-                max-width: 500px;
-                margin: 0 auto 25px auto;
+                margin-bottom: 0;
             }
             
-            /* Stats page */
+            #page-home .quick-locations {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            #page-home .search-container {
+                max-width: none;
+            }
+            
+            /* ============================================
+               STATS PAGE - Compact layout
+               ============================================ */
             #page-stats .summary-grid {
                 display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 15px;
+                grid-template-columns: repeat(6, 1fr);
+                gap: 10px;
+                margin-bottom: 15px;
+            }
+            
+            #page-stats #chart-tabs {
+                margin-bottom: 10px;
             }
             
             #page-stats .controls {
                 flex-wrap: nowrap;
+                margin-bottom: 10px;
+            }
+            
+            #page-stats .date-range-controls {
+                margin-bottom: 10px;
+            }
+            
+            #page-stats #stats-content {
+                display: grid;
+                grid-template-columns: 1fr 320px;
+                gap: 20px;
+            }
+            
+            #page-stats #top-locations-card {
+                grid-column: 2;
+                grid-row: 1 / span 10;
+                position: sticky;
+                top: 20px;
+                align-self: start;
+                max-height: calc(100vh - 60px);
+                overflow-y: auto;
             }
             
             #page-stats .stat-card {
-                margin-bottom: 20px;
+                margin-bottom: 10px;
             }
             
             #page-stats .chart-container {
-                height: 400px;
+                height: 350px;
             }
             
-            /* Map page */
+            /* ============================================
+               MAP PAGE - Compact layout
+               ============================================ */
             #page-map header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
+                margin-bottom: 10px;
             }
             
             #page-map .controls {
-                flex-wrap: nowrap;
-                max-width: 500px;
+                margin-bottom: 10px;
+                max-width: 400px;
+            }
+            
+            #page-map .date-range-controls {
+                margin-bottom: 10px;
             }
             
             #page-map #map-container {
-                height: 500px;
-                border-radius: 16px;
+                height: 400px;
+                border-radius: 12px;
+                margin-bottom: 15px;
             }
             
             #page-map .centerpoint-info {
@@ -929,6 +985,7 @@
                 vertical-align: top;
                 width: calc(50% - 10px);
                 margin-right: 10px;
+                padding: 15px;
             }
             
             #page-map .centerpoint-info:last-child {
@@ -936,9 +993,36 @@
                 margin-left: 10px;
             }
             
-            /* History page */
-            #page-history .history-item {
-                padding: 15px 20px;
+            /* Compact the info boxes */
+            #page-map .centerpoint-title {
+                font-size: 0.8rem;
+                margin-bottom: 8px;
+            }
+            
+            #page-map .centerpoint-location {
+                font-size: 1.1rem;
+            }
+            
+            #page-map .centerpoint-stats {
+                display: flex;
+                gap: 15px;
+                margin-top: 10px;
+            }
+            
+            #page-map .cp-stat {
+                flex: 1;
+            }
+            
+            #page-map .cp-stat-value {
+                font-size: 1.1rem;
+            }
+            
+            #page-map .cp-stat-label {
+                font-size: 0.65rem;
+            }
+            
+            #page-map #animation-controls {
+                margin-top: 10px !important;
             }
         }
         
@@ -946,77 +1030,93 @@
         @media (min-width: 1024px) {
             .container {
                 margin-left: 100px;
-                padding: 30px 60px;
+                padding: 20px 40px;
             }
             
             h1 {
-                font-size: 2.4rem;
+                font-size: 2.2rem;
             }
             
-            /* Stats page - two column layout */
+            /* ============================================
+               HOME PAGE - Better proportions
+               ============================================ */
+            .home-content {
+                max-width: 900px;
+            }
+            
+            .home-left {
+                flex: 0 0 420px;
+            }
+            
+            #page-home .quick-locations {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            /* ============================================
+               STATS PAGE - More space for chart
+               ============================================ */
             #page-stats #stats-content {
-                display: grid;
                 grid-template-columns: 1fr 350px;
-                gap: 30px;
-                grid-template-areas:
-                    "summary summary"
-                    "tabs locations"
-                    "controls locations"
-                    "daterange locations"
-                    "linecontrols locations"
-                    "chart locations";
-            }
-            
-            #page-stats .summary-grid {
-                grid-area: summary;
-                grid-template-columns: repeat(6, 1fr);
-            }
-            
-            #page-stats #chart-tabs {
-                grid-area: tabs;
-            }
-            
-            #page-stats #time-controls {
-                grid-area: controls;
-            }
-            
-            #page-stats #date-range-controls {
-                grid-area: daterange;
-            }
-            
-            #page-stats #line-controls {
-                grid-area: linecontrols;
-            }
-            
-            #page-stats .stat-card:has(#stats-chart) {
-                grid-area: chart;
-            }
-            
-            #page-stats #top-locations-card {
-                grid-area: locations;
-                position: sticky;
-                top: 20px;
-                align-self: start;
-                max-height: calc(100vh - 100px);
-                overflow-y: auto;
+                gap: 25px;
             }
             
             #page-stats .chart-container {
-                height: 450px;
+                height: 400px;
             }
             
-            /* Map page - larger map */
+            /* ============================================
+               MAP PAGE - Side by side with info
+               ============================================ */
+            #page-map.active {
+                display: grid !important;
+                grid-template-columns: 1fr 350px;
+                grid-template-rows: auto auto 1fr;
+                gap: 15px;
+                grid-template-areas:
+                    "header header"
+                    "controls info1"
+                    "map info2";
+                align-items: start;
+            }
+            
+            #page-map header {
+                grid-area: header;
+            }
+            
+            #page-map .controls {
+                grid-area: controls;
+                align-self: start;
+            }
+            
+            #page-map #map-date-controls {
+                display: none; /* Hide when not in custom mode - show via JS */
+            }
+            
+            #page-map #map-date-controls.show {
+                grid-area: controls;
+                margin-top: 70px;
+            }
+            
             #page-map #map-container {
-                height: 550px;
+                grid-area: map;
+                height: calc(100vh - 180px);
+                min-height: 400px;
+                max-height: 600px;
             }
             
-            #page-map .centerpoint-stats {
-                display: flex;
-                gap: 30px;
+            #page-map .centerpoint-info {
+                width: 100%;
+                display: block;
+                margin: 0;
             }
             
-            #page-map .cp-stat {
-                flex: 1;
+            #page-map .centerpoint-info:first-of-type {
+                grid-area: info1;
+            }
+            
+            #page-map .centerpoint-info:last-of-type {
+                grid-area: info2;
+                align-self: start;
             }
         }
         
@@ -1026,80 +1126,27 @@
                 max-width: 1400px;
                 margin-left: auto;
                 margin-right: auto;
-                padding-left: 120px; /* Account for sidebar */
+                padding-left: 120px;
             }
             
-            /* Stats page */
-            #page-stats .summary-grid {
-                grid-template-columns: repeat(6, 1fr);
-            }
-            
-            #page-stats .chart-container {
-                height: 500px;
-            }
-            
-            /* Map page - side by side layout */
-            #page-map {
-                display: grid;
-                grid-template-columns: 1fr 400px;
-                grid-template-rows: auto auto 1fr;
-                gap: 20px;
-                grid-template-areas:
-                    "header header"
-                    "controls info1"
-                    "map info2";
-            }
-            
-            #page-map header {
-                grid-area: header;
-            }
-            
-            #page-map .controls:first-of-type {
-                grid-area: controls;
-            }
-            
-            #page-map #map-date-controls {
-                grid-area: controls;
-                margin-top: 60px;
-            }
-            
-            #page-map #map-container {
-                grid-area: map;
-                height: calc(100vh - 250px);
-                min-height: 500px;
-            }
-            
-            #page-map .centerpoint-info {
-                width: 100%;
-                margin: 0;
-                display: block;
-            }
-            
-            #page-map .centerpoint-info:first-of-type {
-                grid-area: info1;
-            }
-            
-            #page-map .centerpoint-info:last-of-type {
-                grid-area: info2;
-            }
-        }
-        
-        /* Extra large desktop (1800px+) */
-        @media (min-width: 1800px) {
-            .container {
-                max-width: 1700px;
+            .home-content {
+                max-width: 1000px;
             }
             
             #page-stats #stats-content {
-                grid-template-columns: 1fr 400px;
+                grid-template-columns: 1fr 380px;
             }
             
             #page-stats .chart-container {
-                height: 550px;
+                height: 450px;
+            }
+            
+            #page-map.active {
+                grid-template-columns: 1fr 400px;
             }
             
             #page-map #map-container {
-                height: calc(100vh - 200px);
+                max-height: 700px;
             }
         }
     </style>
@@ -1116,32 +1163,38 @@
                 </div>
             </header>
             
-            <div class="current-card">
-                <div class="current-label">Currently In</div>
-                <div id="current-location" class="current-location">Loading...</div>
-                
-                <div class="current-trip-container">
-                    <div id="current-trip" class="current-trip" title="Click to edit"></div>
-                    <div id="current-trip-edit" class="current-trip-edit">
-                        <input type="text" class="trip-edit-input" id="trip-edit-input" placeholder="Trip description...">
-                        <button class="trip-edit-btn" id="trip-save-btn">Save</button>
-                        <button class="trip-edit-btn trip-edit-cancel" id="trip-cancel-btn">✕</button>
+            <div class="home-content">
+                <div class="home-left">
+                    <div class="current-card">
+                        <div class="current-label">Currently In</div>
+                        <div id="current-location" class="current-location">Loading...</div>
+                        
+                        <div class="current-trip-container">
+                            <div id="current-trip" class="current-trip" title="Click to edit"></div>
+                            <div id="current-trip-edit" class="current-trip-edit">
+                                <input type="text" class="trip-edit-input" id="trip-edit-input" placeholder="Trip description...">
+                                <button class="trip-edit-btn" id="trip-save-btn">Save</button>
+                                <button class="trip-edit-btn trip-edit-cancel" id="trip-cancel-btn">✕</button>
+                            </div>
+                        </div>
+                        
+                        <div id="timer" class="timer">--:--:--</div>
+                        <div class="timer-label">time in current location</div>
                     </div>
+                    
+                    <button id="gps-btn" class="gps-btn">📍 Detect My Location</button>
                 </div>
                 
-                <div id="timer" class="timer">--:--:--</div>
-                <div class="timer-label">time in current location</div>
-            </div>
-            
-            <button id="gps-btn" class="gps-btn">📍 Detect My Location</button>
-            
-            <div class="section-title">Quick Entry</div>
-            <div class="quick-locations" id="quick-locations"></div>
-            
-            <div class="section-title">Other Location</div>
-            <div class="search-container">
-                <input type="text" class="search-input" id="search-input" placeholder="Search states or countries...">
-                <div class="search-results" id="search-results"></div>
+                <div class="home-right">
+                    <div class="section-title">Quick Entry</div>
+                    <div class="quick-locations" id="quick-locations"></div>
+                    
+                    <div class="section-title">Other Location</div>
+                    <div class="search-container">
+                        <input type="text" class="search-input" id="search-input" placeholder="Search states or countries...">
+                        <div class="search-results" id="search-results"></div>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -2099,9 +2152,15 @@
                     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
                     document.getElementById(`page-${page}`).classList.add('active');
                     
-                    if (page === 'stats') loadStats();
+                    if (page === 'stats') {
+                        // Small delay to ensure canvas is visible and ready
+                        setTimeout(() => loadStats(), 50);
+                    }
                     if (page === 'history') loadHistory();
-                    if (page === 'map') loadMap();
+                    if (page === 'map') {
+                        // Small delay to ensure container is visible
+                        setTimeout(() => loadMap(), 50);
+                    }
                 });
             });
         }
