@@ -807,6 +807,301 @@
         .gps-btn:disabled {
             opacity: 0.5;
         }
+        
+        /* ============================================
+           RESPONSIVE DESKTOP STYLES
+           ============================================ */
+        
+        /* Tablet and up (768px+) */
+        @media (min-width: 768px) {
+            body {
+                padding-bottom: 20px; /* Remove extra bottom padding for nav */
+            }
+            
+            .container {
+                max-width: none;
+                margin-left: 100px; /* Space for sidebar */
+                padding: 20px 40px;
+            }
+            
+            /* Sidebar navigation */
+            .bottom-nav {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: auto;
+                bottom: 0;
+                width: 80px;
+                flex-direction: column;
+                justify-content: flex-start;
+                padding: 30px 10px;
+                border-top: none;
+                border-right: 1px solid rgba(255, 255, 255, 0.1);
+                gap: 10px;
+            }
+            
+            .nav-btn {
+                padding: 15px 10px;
+                border-radius: 12px;
+                width: 100%;
+            }
+            
+            .nav-btn:hover {
+                background: rgba(255, 255, 255, 0.05);
+            }
+            
+            .nav-btn.active {
+                background: rgba(102, 126, 234, 0.15);
+            }
+            
+            .nav-icon {
+                font-size: 1.8rem;
+            }
+            
+            /* Header */
+            header {
+                text-align: left;
+                margin-bottom: 30px;
+            }
+            
+            h1 {
+                font-size: 2.2rem;
+            }
+            
+            /* Timer page - centered hero */
+            #page-home .current-card {
+                max-width: 500px;
+                margin: 0 auto 30px auto;
+            }
+            
+            #page-home .quick-locations {
+                max-width: 600px;
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            #page-home .search-container {
+                max-width: 500px;
+            }
+            
+            #page-home .gps-btn {
+                max-width: 500px;
+                margin: 0 auto 25px auto;
+            }
+            
+            /* Stats page */
+            #page-stats .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 15px;
+            }
+            
+            #page-stats .controls {
+                flex-wrap: nowrap;
+            }
+            
+            #page-stats .stat-card {
+                margin-bottom: 20px;
+            }
+            
+            #page-stats .chart-container {
+                height: 400px;
+            }
+            
+            /* Map page */
+            #page-map header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            #page-map .controls {
+                flex-wrap: nowrap;
+                max-width: 500px;
+            }
+            
+            #page-map #map-container {
+                height: 500px;
+                border-radius: 16px;
+            }
+            
+            #page-map .centerpoint-info {
+                display: inline-block;
+                vertical-align: top;
+                width: calc(50% - 10px);
+                margin-right: 10px;
+            }
+            
+            #page-map .centerpoint-info:last-child {
+                margin-right: 0;
+                margin-left: 10px;
+            }
+            
+            /* History page */
+            #page-history .history-item {
+                padding: 15px 20px;
+            }
+        }
+        
+        /* Desktop (1024px+) */
+        @media (min-width: 1024px) {
+            .container {
+                margin-left: 100px;
+                padding: 30px 60px;
+            }
+            
+            h1 {
+                font-size: 2.4rem;
+            }
+            
+            /* Stats page - two column layout */
+            #page-stats #stats-content {
+                display: grid;
+                grid-template-columns: 1fr 350px;
+                gap: 30px;
+                grid-template-areas:
+                    "summary summary"
+                    "tabs locations"
+                    "controls locations"
+                    "daterange locations"
+                    "linecontrols locations"
+                    "chart locations";
+            }
+            
+            #page-stats .summary-grid {
+                grid-area: summary;
+                grid-template-columns: repeat(6, 1fr);
+            }
+            
+            #page-stats #chart-tabs {
+                grid-area: tabs;
+            }
+            
+            #page-stats #time-controls {
+                grid-area: controls;
+            }
+            
+            #page-stats #date-range-controls {
+                grid-area: daterange;
+            }
+            
+            #page-stats #line-controls {
+                grid-area: linecontrols;
+            }
+            
+            #page-stats .stat-card:has(#stats-chart) {
+                grid-area: chart;
+            }
+            
+            #page-stats #top-locations-card {
+                grid-area: locations;
+                position: sticky;
+                top: 20px;
+                align-self: start;
+                max-height: calc(100vh - 100px);
+                overflow-y: auto;
+            }
+            
+            #page-stats .chart-container {
+                height: 450px;
+            }
+            
+            /* Map page - larger map */
+            #page-map #map-container {
+                height: 550px;
+            }
+            
+            #page-map .centerpoint-stats {
+                display: flex;
+                gap: 30px;
+            }
+            
+            #page-map .cp-stat {
+                flex: 1;
+            }
+        }
+        
+        /* Large desktop (1400px+) */
+        @media (min-width: 1400px) {
+            .container {
+                max-width: 1400px;
+                margin-left: auto;
+                margin-right: auto;
+                padding-left: 120px; /* Account for sidebar */
+            }
+            
+            /* Stats page */
+            #page-stats .summary-grid {
+                grid-template-columns: repeat(6, 1fr);
+            }
+            
+            #page-stats .chart-container {
+                height: 500px;
+            }
+            
+            /* Map page - side by side layout */
+            #page-map {
+                display: grid;
+                grid-template-columns: 1fr 400px;
+                grid-template-rows: auto auto 1fr;
+                gap: 20px;
+                grid-template-areas:
+                    "header header"
+                    "controls info1"
+                    "map info2";
+            }
+            
+            #page-map header {
+                grid-area: header;
+            }
+            
+            #page-map .controls:first-of-type {
+                grid-area: controls;
+            }
+            
+            #page-map #map-date-controls {
+                grid-area: controls;
+                margin-top: 60px;
+            }
+            
+            #page-map #map-container {
+                grid-area: map;
+                height: calc(100vh - 250px);
+                min-height: 500px;
+            }
+            
+            #page-map .centerpoint-info {
+                width: 100%;
+                margin: 0;
+                display: block;
+            }
+            
+            #page-map .centerpoint-info:first-of-type {
+                grid-area: info1;
+            }
+            
+            #page-map .centerpoint-info:last-of-type {
+                grid-area: info2;
+            }
+        }
+        
+        /* Extra large desktop (1800px+) */
+        @media (min-width: 1800px) {
+            .container {
+                max-width: 1700px;
+            }
+            
+            #page-stats #stats-content {
+                grid-template-columns: 1fr 400px;
+            }
+            
+            #page-stats .chart-container {
+                height: 550px;
+            }
+            
+            #page-map #map-container {
+                height: calc(100vh - 200px);
+            }
+        }
     </style>
 </head>
 <body>
@@ -2560,6 +2855,13 @@
                 leafletMap.invalidateSize();
                 updateCenterpoint();
             }, 100);
+            
+            // Handle window resize for responsive layout
+            window.addEventListener('resize', () => {
+                if (leafletMap) {
+                    leafletMap.invalidateSize();
+                }
+            });
             
             // Initialize trail toggle only once
             if (!trailToggleInitialized) {
