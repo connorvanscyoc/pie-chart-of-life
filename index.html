@@ -871,14 +871,9 @@
             /* ============================================
                HOME PAGE
                ============================================ */
-            #page-home header {
-                text-align: center;
-                margin-bottom: 10px;
-            }
-            
             #page-home .sync-status {
                 text-align: center;
-                margin-bottom: 20px;
+                margin-bottom: 15px;
             }
             
             .home-content {
@@ -1016,7 +1011,7 @@
             #page-map .map-layout {
                 display: flex;
                 gap: 25px;
-                align-items: stretch;
+                align-items: flex-start;
             }
             
             #page-map .map-main {
@@ -1027,11 +1022,18 @@
             
             #page-map .map-sidebar {
                 flex: 0 0 350px;
-                display: block; /* Stack info boxes vertically on sidebar */
+                display: block;
+                margin-top: 0;
+                padding-top: 0;
+            }
+            
+            #page-map .map-sidebar .centerpoint-info:first-child {
+                margin-top: 0;
             }
             
             #page-map .controls {
                 max-width: none;
+                margin-top: 0;
             }
             
             #page-map #map-container {
@@ -1072,13 +1074,13 @@
                 <h1>🥧 Pie Chart of Life</h1>
             </header>
             
-            <div id="sync-status" class="sync-status">
-                <span id="sync-text">Connecting...</span>
-                <button class="refresh-btn" id="refresh-btn" title="Refresh">🔄</button>
-            </div>
-            
             <div class="home-content">
                 <div class="home-left">
+                    <div id="sync-status" class="sync-status">
+                        <span id="sync-text">Connecting...</span>
+                        <button class="refresh-btn" id="refresh-btn" title="Refresh">🔄</button>
+                    </div>
+                    
                     <div class="current-card">
                         <div class="current-label">Currently In</div>
                         <div id="current-location" class="current-location">Loading...</div>
