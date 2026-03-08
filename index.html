@@ -1532,6 +1532,9 @@
         let animationInterval = null;
         let animationMarker = null;
         let gpsData = []; // Real-time GPS data from Overland
+        let initialDataLoaded = false; // Track first successful data load
+        let statsNeedsLoad = false; // Track if stats page needs to load when data arrives
+        let mapNeedsLoad = false; // Track if map page needs to load when data arrives
         
         const BIRTH_DATE = new Date('1996-11-04T07:31:00-05:00');
         
@@ -1689,14 +1692,21 @@
             
             localStorage.setItem('pie_chart_entries', JSON.stringify(entries));
             
-            // If user is on stats page, load/refresh the stats
-            if (document.getElementById('page-stats').classList.contains('active')) {
-                loadStats();
-            }
-            
-            // If user is on map page, load/refresh the map
-            if (document.getElementById('page-map').classList.contains('active')) {
-                loadMap();
+            // On first successful load, check if pages were waiting for data
+            if (!initialDataLoaded && entries.length > 0) {
+                initialDataLoaded = true;
+                
+                // If user tried to view stats before data loaded, load it now
+                if (statsNeedsLoad && document.getElementById('page-stats').classList.contains('active')) {
+                    statsNeedsLoad = false;
+                    loadStats();
+                }
+                
+                // If user tried to view map before data loaded, load it now
+                if (mapNeedsLoad && document.getElementById('page-map').classList.contains('active')) {
+                    mapNeedsLoad = false;
+                    loadMap();
+                }
             }
             
             // Also fetch GPS data if webhook URL is configured
@@ -2234,7 +2244,11 @@
         }
         
         function loadStats() {
-            if (entries.length === 0) return;
+            if (entries.length === 0) {
+                // Data not loaded yet - mark that we need to load when data arrives
+                statsNeedsLoad = true;
+                return;
+            }
             
             const years = [...new Set(entries.map(e => new Date(e.timestamp).getFullYear()))].sort((a, b) => b - a);
             const yearSelect = document.getElementById('year-select');
@@ -2813,7 +2827,11 @@
         }
         
         function loadMap() {
-            if (entries.length === 0) return;
+            if (entries.length === 0) {
+                // Data not loaded yet - mark that we need to load when data arrives
+                mapNeedsLoad = true;
+                return;
+            }
             
             // Populate year selector
             const years = [...new Set(entries.map(e => new Date(e.timestamp).getFullYear()))].sort((a, b) => b - a);
