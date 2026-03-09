@@ -1137,7 +1137,7 @@
                             <div class="control-group">
                                 <label class="control-label">Time Range</label>
                                 <select class="control-select" id="time-range-select">
-                                    <option value="all">All Time</option>
+                                    <option value="all">Lifetime</option>
                                     <option value="year">Specific Year</option>
                                     <option value="custom">Custom Range</option>
                                 </select>
@@ -1211,7 +1211,7 @@
                         <div class="control-group">
                             <label class="control-label">Time Range</label>
                             <select class="control-select" id="map-time-range">
-                                <option value="all">All Time (Lifetime)</option>
+                                <option value="all">Lifetime</option>
                                 <option value="year">Specific Year</option>
                                 <option value="custom">Custom Range</option>
                             </select>
@@ -1535,6 +1535,7 @@
         let initialDataLoaded = false; // Track first successful data load
         let statsNeedsLoad = false; // Track if stats page needs to load when data arrives
         let mapNeedsLoad = false; // Track if map page needs to load when data arrives
+        let statsInitialized = false; // Track if stats page has been initialized
         
         const BIRTH_DATE = new Date('1996-11-04T07:31:00-05:00');
         
@@ -2103,7 +2104,19 @@
                     
                     if (page === 'stats') {
                         // Small delay to ensure canvas is visible and ready
-                        setTimeout(() => loadStats(), 50);
+                        setTimeout(() => {
+                            if (entries.length === 0) {
+                                // Data not loaded yet
+                                statsNeedsLoad = true;
+                            } else if (!statsInitialized) {
+                                // First time visiting stats with data - do full initialization
+                                loadStats();
+                            } else {
+                                // Already initialized - just re-render the chart
+                                updateSummary();
+                                renderChart();
+                            }
+                        }, 50);
                     }
                     if (page === 'history') loadHistory();
                     if (page === 'map') {
@@ -2210,6 +2223,7 @@
         }
         
         function updateStatsUI() {
+            const isLine = activeChartType === 'line';
             const isLineOrCumulative = activeChartType === 'line' || activeChartType === 'cumulative';
             document.getElementById('line-controls').style.display = isLineOrCumulative ? 'block' : 'none';
             document.getElementById('time-controls').style.display = 'flex';
@@ -2224,9 +2238,10 @@
             const timeRangeSelect = document.getElementById('time-range-select');
             const currentValue = timeRangeSelect.value;
             
-            if (isLineOrCumulative) {
+            // Only Line chart loses "Specific Year" option (not Cumulative)
+            if (isLine) {
                 timeRangeSelect.innerHTML = `
-                    <option value="all">All Time</option>
+                    <option value="all">Lifetime</option>
                     <option value="custom">Custom Range</option>
                 `;
                 if (currentValue === 'year') {
@@ -2235,12 +2250,12 @@
                 }
             } else {
                 timeRangeSelect.innerHTML = `
-                    <option value="all">All Time</option>
+                    <option value="all">Lifetime</option>
                     <option value="year">Specific Year</option>
                     <option value="custom">Custom Range</option>
                 `;
             }
-            timeRangeSelect.value = currentValue === 'year' && isLineOrCumulative ? 'all' : currentValue;
+            timeRangeSelect.value = currentValue === 'year' && isLine ? 'all' : currentValue;
         }
         
         function loadStats() {
@@ -2263,6 +2278,8 @@
             updateSummary();
             updateStatsUI();
             renderChart();
+            
+            statsInitialized = true;
         }
         
         function populateLocationToggles() {
