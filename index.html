@@ -3175,15 +3175,15 @@
                     const centerpointIcon = L.divIcon({
                         className: 'centerpoint-icon',
                         html: `<div style="
-                            width: 16px;
-                            height: 16px;
+                            width: 14px;
+                            height: 14px;
                             background: linear-gradient(135deg, #667eea, #764ba2);
                             border: 2px solid #fff;
                             border-radius: 50%;
                             box-shadow: 0 2px 10px rgba(0,0,0,0.3);
                         "></div>`,
-                        iconSize: [16, 16],
-                        iconAnchor: [8, 8]
+                        iconSize: [14, 14],
+                        iconAnchor: [7, 7]
                     });
                     
                     centerpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { icon: centerpointIcon })
@@ -3263,6 +3263,14 @@
                 leafletMap.removeLayer(animationMarker);
                 animationMarker = null;
             }
+            
+            // Also clear centerpoint marker when trail is being shown
+            // (only one dot should be visible at a time)
+            if (showTrail && centerpointMarker) {
+                leafletMap.removeLayer(centerpointMarker);
+                centerpointMarker = null;
+            }
+            
             animationPoints = [];
         }
         
@@ -3508,17 +3516,15 @@
                                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             
             const labelsPlaced = new Set();
-            const isVeryShortRange = totalDays <= 90 && totalDays > 31; // 1-3 months
-            const isMinuteRange = totalDays <= 31; // Using minute intervals
-            const isYearView = totalDays > 300 && totalDays <= 400; // Roughly a year
-            const isMultiYear = totalDays > 400;
             
-            // Calculate effective step for labeling (matches sampling step)
-            let labelStep = 1;
-            if (totalDays > 1825) labelStep = 14;
-            else if (totalDays > 730) labelStep = 7;
-            else if (totalDays > 180) labelStep = 3;
-            else if (totalDays > 60) labelStep = 2;
+            // Label interval definitions based on user specification:
+            // 3+ years: yearly | 9mo-3yr: monthly | 6-9mo: bi-weekly | 3-6mo: weekly | 32d-3mo: every 2 days | <32d: daily
+            const isThreeYearsPlus = totalDays >= 1095;      // 3+ years: yearly labels
+            const isNineMonthsTo3Years = totalDays >= 274 && totalDays < 1095;  // 9mo-3yr: monthly
+            const isSixToNineMonths = totalDays >= 183 && totalDays < 274;      // 6-9mo: bi-weekly
+            const isThreeToSixMonths = totalDays >= 92 && totalDays < 183;      // 3-6mo: weekly
+            const isOneToThreeMonths = totalDays >= 32 && totalDays < 92;       // 32d-3mo: every 2 days
+            const isUnderOneMonth = totalDays < 32;                              // <32d: daily
             
             trailPoints.forEach((point, i) => {
                 const isStart = i === 0;
@@ -3529,79 +3535,68 @@
                 let isDot = false;
                 
                 if (isStart) {
+                    // Start label
                     shouldLabel = true;
-                    if (isMinuteRange && totalDays <= 7) {
-                        // Very short range: show date and time
-                        const hours = point.date.getHours();
-                        const mins = point.date.getMinutes();
-                        const ampm = hours >= 12 ? 'pm' : 'am';
-                        const h = hours % 12 || 12;
-                        label = `${point.month + 1}/${point.day} ${h}${ampm}`;
+                    if (isUnderOneMonth && totalDays <= 7) {
+                        // Very short range: show date
+                        label = `${point.month + 1}/${point.day}`;
                     } else {
                         label = monthNames[point.month];
                     }
                 } else if (isEnd) {
+                    // End: always a dot, no text label
                     shouldLabel = true;
                     isDot = true;
-                } else if (isMinuteRange) {
-                    // <= 31 days with minute intervals
-                    if (totalDays <= 3) {
-                        // Every 3-6 hours for very short ranges
-                        const pointsPerLabel = Math.max(1, Math.floor(180 / stepMinutes)); // Every ~3 hours
-                        if (i % pointsPerLabel === 0 && i > 0) {
-                            shouldLabel = true;
-                            const hours = point.date.getHours();
-                            const ampm = hours >= 12 ? 'pm' : 'am';
-                            const h = hours % 12 || 12;
-                            label = `${h}${ampm}`;
-                            // Add date if it's a new day
-                            if (i > 0 && trailPoints[i-1].day !== point.day) {
-                                label = `${point.month + 1}/${point.day}`;
-                            }
-                        }
-                    } else if (totalDays <= 7) {
-                        // Label each day
-                        const dayKey = `${point.year}-${point.month}-${point.day}`;
-                        if (!labelsPlaced.has(dayKey)) {
-                            shouldLabel = true;
-                            label = `${point.month + 1}/${point.day}`;
-                            labelsPlaced.add(dayKey);
-                        }
-                    } else {
-                        // Label every few days
-                        const pointsPerWeek = Math.max(1, Math.round(trailPoints.length / (totalDays / 7)));
-                        if (i % pointsPerWeek === 0 && i > 0) {
-                            shouldLabel = true;
-                            label = `${point.month + 1}/${point.day}`;
-                        }
-                    }
-                } else if (isVeryShortRange) {
-                    // < 3 months: label every ~7 days
-                    const pointsPerWeek = Math.max(1, Math.round(7 / Math.max(1, labelStep)));
-                    if (i % pointsPerWeek === 0 && i > 0) {
-                        shouldLabel = true;
-                        label = `${point.month + 1}/${point.day}`;
-                        labelsPlaced.add(i);
-                    }
-                } else if (isYearView) {
-                    // Year view: monthly labels (skip first month since start covers it)
-                    const monthKey = `${point.year}-${point.month}`;
-                    const isFirstOfMonth = point.day <= labelStep;
-                    if (isFirstOfMonth && !labelsPlaced.has(monthKey)) {
-                        // Skip if too close to start
-                        if (i > 5) {
-                            shouldLabel = true;
-                            label = monthNames[point.month];
-                            labelsPlaced.add(monthKey);
-                        }
-                    }
-                } else if (isMultiYear) {
-                    // Multi-year: yearly labels (Jan 1)
-                    const isJanuary = point.month === 0 && point.day <= labelStep;
+                } else if (isThreeYearsPlus) {
+                    // 3+ years: yearly labels (on Jan 1)
+                    const isJanuary = point.month === 0 && point.day <= 14;
                     if (isJanuary && !labelsPlaced.has(point.year)) {
                         shouldLabel = true;
                         label = `'${String(point.year).slice(2)}`;
                         labelsPlaced.add(point.year);
+                    }
+                } else if (isNineMonthsTo3Years) {
+                    // 9mo-3yr: monthly labels
+                    const monthKey = `${point.year}-${point.month}`;
+                    const isEarlyInMonth = point.day <= 7;
+                    if (isEarlyInMonth && !labelsPlaced.has(monthKey) && i > 3) {
+                        shouldLabel = true;
+                        label = monthNames[point.month];
+                        labelsPlaced.add(monthKey);
+                    }
+                } else if (isSixToNineMonths) {
+                    // 6-9mo: bi-weekly labels (every ~14 days)
+                    const dayOfYear = Math.floor((point.date - new Date(point.year, 0, 0)) / (1000 * 60 * 60 * 24));
+                    const biWeekKey = `${point.year}-${Math.floor(dayOfYear / 14)}`;
+                    if (!labelsPlaced.has(biWeekKey) && i > 2) {
+                        shouldLabel = true;
+                        label = `${point.month + 1}/${point.day}`;
+                        labelsPlaced.add(biWeekKey);
+                    }
+                } else if (isThreeToSixMonths) {
+                    // 3-6mo: weekly labels
+                    const dayOfYear = Math.floor((point.date - new Date(point.year, 0, 0)) / (1000 * 60 * 60 * 24));
+                    const weekKey = `${point.year}-${Math.floor(dayOfYear / 7)}`;
+                    if (!labelsPlaced.has(weekKey) && i > 2) {
+                        shouldLabel = true;
+                        label = `${point.month + 1}/${point.day}`;
+                        labelsPlaced.add(weekKey);
+                    }
+                } else if (isOneToThreeMonths) {
+                    // 32d-3mo: every 2 days
+                    const dayKey = `${point.year}-${point.month}-${Math.floor(point.day / 2)}`;
+                    if (!labelsPlaced.has(dayKey) && i > 1) {
+                        shouldLabel = true;
+                        label = `${point.month + 1}/${point.day}`;
+                        labelsPlaced.add(dayKey);
+                    }
+                } else if (isUnderOneMonth) {
+                    // <32d: daily labels
+                    const dayKey = `${point.year}-${point.month}-${point.day}`;
+                    if (!labelsPlaced.has(dayKey)) {
+                        shouldLabel = true;
+                        label = `${point.month + 1}/${point.day}`;
+                        labelsPlaced.add(dayKey);
                     }
                 }
                 
@@ -3679,6 +3674,13 @@
                 onBtn.classList.add('active');
                 offBtn.classList.remove('active');
                 animationControls.style.display = 'block';
+                
+                // Remove centerpointMarker since trail end dot will serve as marker
+                if (centerpointMarker) {
+                    leafletMap.removeLayer(centerpointMarker);
+                    centerpointMarker = null;
+                }
+                
                 drawTrail();
                 initAnimationControls();
             });
@@ -3735,9 +3737,16 @@
             animationPlaying = true;
             document.getElementById('play-btn').textContent = '⏸ Pause';
             
-            // Hide the end marker during animation
+            // Clear any existing animation marker
+            if (animationMarker) {
+                leafletMap.removeLayer(animationMarker);
+                animationMarker = null;
+            }
+            
+            // Hide the end marker during animation (animation dot takes over)
             if (trailEndMarker) {
                 leafletMap.removeLayer(trailEndMarker);
+                trailEndMarker = null;
             }
             
             // If at end, restart
