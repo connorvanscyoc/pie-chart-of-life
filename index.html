@@ -1151,12 +1151,12 @@
                         <div class="date-range-controls" id="date-range-controls">
                             <div class="control-group">
                                 <label class="control-label">From (MM/DD/YYYY)</label>
-                                <input type="text" class="date-text-input" id="date-from-text" placeholder="MM/DD/YYYY">
+                                <input type="text" class="date-text-input" id="date-from-text" placeholder="MM/DD/YYYY" autocomplete="off">
                                 <input type="date" class="control-input" id="date-from" style="display:none;">
                             </div>
                             <div class="control-group">
                                 <label class="control-label">To (MM/DD/YYYY)</label>
-                                <input type="text" class="date-text-input" id="date-to-text" placeholder="MM/DD/YYYY">
+                                <input type="text" class="date-text-input" id="date-to-text" placeholder="MM/DD/YYYY" autocomplete="off">
                                 <input type="date" class="control-input" id="date-to" style="display:none;">
                             </div>
                         </div>
@@ -1225,11 +1225,11 @@
                     <div class="date-range-controls" id="map-date-controls">
                         <div class="control-group">
                             <label class="control-label">From</label>
-                            <input type="text" class="date-text-input" id="map-date-from" placeholder="MM/DD/YYYY">
+                            <input type="text" class="date-text-input" id="map-date-from" placeholder="MM/DD/YYYY" autocomplete="off">
                         </div>
                         <div class="control-group">
                             <label class="control-label">To</label>
-                            <input type="text" class="date-text-input" id="map-date-to" placeholder="MM/DD/YYYY">
+                            <input type="text" class="date-text-input" id="map-date-to" placeholder="MM/DD/YYYY" autocomplete="off">
                         </div>
                     </div>
                     
@@ -3614,14 +3614,11 @@
             
             const labelsPlaced = new Set();
             
-            // Label interval definitions based on user specification:
-            // 3+ years: yearly | 9mo-3yr: monthly | 6-9mo: bi-weekly | 3-6mo: weekly | 32d-3mo: every 2 days | <32d: daily
+            // Label interval definitions:
+            // 3+ years: yearly | 3mo-3yr: monthly | <3mo: every 2 days
             const isThreeYearsPlus = totalDays >= 1095;      // 3+ years: yearly labels
-            const isNineMonthsTo3Years = totalDays >= 274 && totalDays < 1095;  // 9mo-3yr: monthly
-            const isSixToNineMonths = totalDays >= 183 && totalDays < 274;      // 6-9mo: bi-weekly
-            const isThreeToSixMonths = totalDays >= 92 && totalDays < 183;      // 3-6mo: weekly
-            const isOneToThreeMonths = totalDays >= 32 && totalDays < 92;       // 32d-3mo: every 2 days
-            const isUnderOneMonth = totalDays < 32;                              // <32d: daily
+            const isThreeMonthsTo3Years = totalDays >= 92 && totalDays < 1095;  // 3mo-3yr: monthly
+            const isUnderThreeMonths = totalDays < 92;       // <3mo: every 2 days
             
             trailPoints.forEach((point, i) => {
                 const isStart = i === 0;
@@ -3634,8 +3631,8 @@
                 if (isStart) {
                     // Start label
                     shouldLabel = true;
-                    if (isUnderOneMonth && totalDays <= 7) {
-                        // Very short range: show date
+                    if (isUnderThreeMonths && totalDays <= 14) {
+                        // Short range: show date
                         label = `${point.month + 1}/${point.day}`;
                     } else {
                         label = monthNames[point.month];
@@ -3652,8 +3649,8 @@
                         label = `'${String(point.year).slice(2)}`;
                         labelsPlaced.add(point.year);
                     }
-                } else if (isNineMonthsTo3Years) {
-                    // 9mo-3yr: monthly labels
+                } else if (isThreeMonthsTo3Years) {
+                    // 3mo-3yr: monthly labels
                     const monthKey = `${point.year}-${point.month}`;
                     const isEarlyInMonth = point.day <= 7;
                     if (isEarlyInMonth && !labelsPlaced.has(monthKey) && i > 3) {
@@ -3661,36 +3658,10 @@
                         label = monthNames[point.month];
                         labelsPlaced.add(monthKey);
                     }
-                } else if (isSixToNineMonths) {
-                    // 6-9mo: bi-weekly labels (every ~14 days)
-                    const dayOfYear = Math.floor((point.date - new Date(point.year, 0, 0)) / (1000 * 60 * 60 * 24));
-                    const biWeekKey = `${point.year}-${Math.floor(dayOfYear / 14)}`;
-                    if (!labelsPlaced.has(biWeekKey) && i > 2) {
-                        shouldLabel = true;
-                        label = `${point.month + 1}/${point.day}`;
-                        labelsPlaced.add(biWeekKey);
-                    }
-                } else if (isThreeToSixMonths) {
-                    // 3-6mo: weekly labels
-                    const dayOfYear = Math.floor((point.date - new Date(point.year, 0, 0)) / (1000 * 60 * 60 * 24));
-                    const weekKey = `${point.year}-${Math.floor(dayOfYear / 7)}`;
-                    if (!labelsPlaced.has(weekKey) && i > 2) {
-                        shouldLabel = true;
-                        label = `${point.month + 1}/${point.day}`;
-                        labelsPlaced.add(weekKey);
-                    }
-                } else if (isOneToThreeMonths) {
-                    // 32d-3mo: every 2 days
+                } else if (isUnderThreeMonths) {
+                    // <3mo: every 2 days
                     const dayKey = `${point.year}-${point.month}-${Math.floor(point.day / 2)}`;
                     if (!labelsPlaced.has(dayKey) && i > 1) {
-                        shouldLabel = true;
-                        label = `${point.month + 1}/${point.day}`;
-                        labelsPlaced.add(dayKey);
-                    }
-                } else if (isUnderOneMonth) {
-                    // <32d: daily labels
-                    const dayKey = `${point.year}-${point.month}-${point.day}`;
-                    if (!labelsPlaced.has(dayKey)) {
                         shouldLabel = true;
                         label = `${point.month + 1}/${point.day}`;
                         labelsPlaced.add(dayKey);
