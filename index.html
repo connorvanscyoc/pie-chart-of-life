@@ -1332,6 +1332,9 @@
         // Example: 'https://script.google.com/macros/s/YOUR_WEBHOOK_ID/exec?action=getData'
         const GPS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbxjBHNKcP1R7VJh1dtelzdCFMsrpWNf6IclP6CkABKr21ksbo4jZK4ubhEEVoNos9Gsgg/exec?action=getData';
         
+        // Maximum acceptable GPS accuracy (in meters). Points with worse accuracy are filtered out.
+        const GPS_MAX_ACCURACY = 65;
+        
         // The cutoff date: before this, use state/country centers; after this, use GPS data
         // March 5, 2026 at 1:04 PM EST
         const GPS_CUTOFF_DATE = new Date('2026-03-05T13:04:00-05:00');
@@ -1722,6 +1725,7 @@
                 const result = await response.json();
                 
                 if (result.success && result.data) {
+                    const rawCount = result.data.length;
                     gpsData = result.data
                         .filter(point => point.latitude && point.longitude) // Filter out invalid points
                         .map(point => ({
@@ -1733,9 +1737,11 @@
                             motion: point.motion || ''
                         }))
                         .filter(point => !isNaN(point.latitude) && !isNaN(point.longitude)) // Filter NaN coords
+                        .filter(point => point.accuracy <= GPS_MAX_ACCURACY) // Filter out inaccurate points
                         .sort((a, b) => a.timestamp - b.timestamp);
                     
-                    console.log(`Loaded ${gpsData.length} valid GPS points`);
+                    const filteredOut = rawCount - gpsData.length;
+                    console.log(`Loaded ${gpsData.length} valid GPS points (filtered out ${filteredOut} with accuracy > ${GPS_MAX_ACCURACY}m)`);
                     
                     // Cache GPS data
                     localStorage.setItem('pie_chart_gps_data', JSON.stringify(gpsData));
@@ -1747,10 +1753,12 @@
                 const cached = localStorage.getItem('pie_chart_gps_data');
                 if (cached) {
                     try {
-                        gpsData = JSON.parse(cached).map(point => ({
-                            ...point,
-                            timestamp: new Date(point.timestamp)
-                        }));
+                        gpsData = JSON.parse(cached)
+                            .map(point => ({
+                                ...point,
+                                timestamp: new Date(point.timestamp)
+                            }))
+                            .filter(point => point.accuracy <= GPS_MAX_ACCURACY); // Apply accuracy filter to cache too
                         console.log(`Loaded ${gpsData.length} GPS points from cache`);
                     } catch (e) {
                         console.error('Error parsing GPS cache:', e);
