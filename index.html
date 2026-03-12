@@ -1565,6 +1565,7 @@
         let gpsData = []; // Real-time GPS data from Overland
         let showVelocityVector = false;
         let velocityArrow = null;
+        let velocityCenterpointMarker = null;
         let velocityToggleInitialized = false;
         let initialDataLoaded = false; // Track first successful data load
         let statsNeedsLoad = false; // Track if stats page needs to load when data arrives
@@ -3955,6 +3956,24 @@
                 return;
             }
             
+            // Draw the velocity centerpoint marker (green to match the arrow)
+            const velocityCpIcon = L.divIcon({
+                className: 'velocity-centerpoint-icon',
+                html: `<div style="
+                    width: 14px;
+                    height: 14px;
+                    background: #6bcb77;
+                    border: 2px solid #fff;
+                    border-radius: 50%;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                "></div>`,
+                iconSize: [14, 14],
+                iconAnchor: [7, 7]
+            });
+            
+            velocityCenterpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { icon: velocityCpIcon })
+                .addTo(leafletMap);
+            
             // Get current location
             const currentLoc = getCurrentLocation();
             
@@ -4041,6 +4060,11 @@
                     leafletMap.removeLayer(layer);
                 });
                 velocityArrow = null;
+            }
+            
+            if (velocityCenterpointMarker && leafletMap) {
+                leafletMap.removeLayer(velocityCenterpointMarker);
+                velocityCenterpointMarker = null;
             }
         }
         
