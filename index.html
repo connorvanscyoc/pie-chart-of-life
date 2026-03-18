@@ -1518,8 +1518,8 @@
         };
         
         // Home location for distance calculation
-        const CHILDHOOD_HOME = [39.6057, -76.4697]; // 1507 Huntfield Way, Jarrettsville, MD 21084
-        const BIRTHPLACE = [39.4019, -76.6479]; // GBMC Hospital, 6701 N Charles St, Towson, MD 21204
+        const CHILDHOOD_HOME = [39.58291540715135, -76.46284266624608]; // 1507 Huntfield Way, Jarrettsville, MD 21084
+        const BIRTHPLACE = [39.390890254029195, -76.62399299512069]; // GBMC Hospital, 6701 N Charles St, Towson, MD 21204
         
         // ============================================
         // HELPER: Check if location is a flight (handles both "Flight" and "Flights")
@@ -1562,6 +1562,7 @@
         let velocityArrow = null;
         let velocityCenterpointMarker = null;
         let velocityToggleInitialized = false;
+        let currentMapCenterpoint = null; // SHARED centerpoint used by both trail and velocity
         let initialDataLoaded = false; // Track first successful data load
         let statsNeedsLoad = false; // Track if stats page needs to load when data arrives
         let mapNeedsLoad = false; // Track if map page needs to load when data arrives
@@ -3302,6 +3303,9 @@
                 const { startDate, endDate } = getMapDateRange();
                 const centerpoint = calculateCenterpoint(startDate, endDate);
                 
+                // Store in shared variable so trail and velocity use the SAME point
+                currentMapCenterpoint = centerpoint;
+                
                 if (!centerpoint) {
                     document.getElementById('centerpoint-location').textContent = 'No data for range';
                     document.getElementById('centerpoint-coords').textContent = '--';
@@ -3620,17 +3624,30 @@
                 }
             }
             
-            // Add final point
-            const finalCp = getCenterpointAt(effectiveEnd);
-            if (finalCp) {
+            // Add final point - use the SHARED centerpoint to ensure consistency
+            // This ensures the trail line actually ends where the velocity arrow starts
+            if (currentMapCenterpoint) {
                 trailPoints.push({
-                    lat: finalCp.lat,
-                    lng: finalCp.lng,
+                    lat: currentMapCenterpoint.lat,
+                    lng: currentMapCenterpoint.lng,
                     date: effectiveEnd,
                     day: effectiveEnd.getDate(),
                     month: effectiveEnd.getMonth(),
                     year: effectiveEnd.getFullYear()
                 });
+            } else {
+                // Fallback to incremental calculation if shared centerpoint not available
+                const finalCp = getCenterpointAt(effectiveEnd);
+                if (finalCp) {
+                    trailPoints.push({
+                        lat: finalCp.lat,
+                        lng: finalCp.lng,
+                        date: effectiveEnd,
+                        day: effectiveEnd.getDate(),
+                        month: effectiveEnd.getMonth(),
+                        year: effectiveEnd.getFullYear()
+                    });
+                }
             }
             
             if (trailPoints.length < 2) return;
@@ -3753,7 +3770,10 @@
                 
                 if (shouldLabel) {
                     if (isDot) {
-                        // End marker: medium-sized dot (between 8px and 20px)
+                        // End marker: use the SHARED centerpoint to ensure trail end matches velocity start
+                        const endLat = currentMapCenterpoint ? currentMapCenterpoint.lat : point.lat;
+                        const endLng = currentMapCenterpoint ? currentMapCenterpoint.lng : point.lng;
+                        
                         const icon = L.divIcon({
                             className: 'trail-end-dot',
                             html: `<div style="
@@ -3767,7 +3787,7 @@
                             iconSize: [14, 14],
                             iconAnchor: [7, 7]
                         });
-                        trailEndMarker = L.marker([point.lat, point.lng], { icon: icon }).addTo(leafletMap);
+                        trailEndMarker = L.marker([endLat, endLng], { icon: icon }).addTo(leafletMap);
                         // Also add to trailMarkers for general cleanup
                         trailMarkers.push(trailEndMarker);
                     } else {
@@ -3822,8 +3842,8 @@
                 clearTrail();
                 
                 // Restore centerpoint marker without resetting map view
-                const { startDate, endDate } = getMapDateRange();
-                const centerpoint = calculateCenterpoint(startDate, endDate);
+                // Use the shared centerpoint
+                const centerpoint = currentMapCenterpoint;
                 if (centerpoint && !showVelocityVector) {
                     const centerpointIcon = L.divIcon({
                         className: 'centerpoint-icon',
@@ -3889,9 +3909,9 @@
                 clearVelocityVector();
                 
                 // Restore centerpoint marker without resetting map view (only if trail is off)
+                // Use the shared centerpoint
                 if (!showTrail) {
-                    const { startDate, endDate } = getMapDateRange();
-                    const centerpoint = calculateCenterpoint(startDate, endDate);
+                    const centerpoint = currentMapCenterpoint;
                     if (centerpoint) {
                         const centerpointIcon = L.divIcon({
                             className: 'centerpoint-icon',
@@ -4008,8 +4028,6 @@
             
             clearVelocityVector();
             
-            // Use the same date range as the rest of the map (critical for consistency)
-            const { startDate, endDate } = getMapDateRange();
             const timeRange = document.getElementById('map-time-range').value;
             
             // Only show for lifetime, thisYear, thisMonth
@@ -4017,7 +4035,9 @@
                 return;
             }
             
-            const centerpoint = calculateCenterpoint(startDate, endDate);
+            // Use the SHARED centerpoint calculated in updateCenterpoint()
+            // This ensures trail and velocity arrow use the EXACT same point
+            const centerpoint = currentMapCenterpoint;
             
             if (!centerpoint) {
                 document.getElementById('velocity-value').textContent = 'No data';
@@ -4071,6 +4091,9 @@
                 leafletMap.removeLayer(centerpointMarker);
                 centerpointMarker = null;
             }
+            
+            // Get date range for velocity calculation
+            const { startDate, endDate } = getMapDateRange();
             
             // Calculate total time in the selected range (in days)
             const totalDays = (endDate - startDate) / (1000 * 60 * 60 * 24);
