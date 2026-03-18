@@ -1518,8 +1518,8 @@
         };
         
         // Home location for distance calculation
-        const CHILDHOOD_HOME = [39.5925, -76.4730]; // 1507 Hunt Field Way, Jarrettsville, MD
-        const BIRTHPLACE = [39.3947, -76.6483]; // GBMC Hospital, Baltimore, MD
+        const CHILDHOOD_HOME = [39.6057, -76.4697]; // 1507 Huntfield Way, Jarrettsville, MD 21084
+        const BIRTHPLACE = [39.4019, -76.6479]; // GBMC Hospital, 6701 N Charles St, Towson, MD 21204
         
         // ============================================
         // HELPER: Check if location is a flight (handles both "Flight" and "Flights")
@@ -3820,7 +3820,32 @@
                 animationControls.style.display = 'none';
                 stopAnimation();
                 clearTrail();
-                updateCenterpoint();
+                
+                // Restore centerpoint marker without resetting map view
+                const { startDate, endDate } = getMapDateRange();
+                const centerpoint = calculateCenterpoint(startDate, endDate);
+                if (centerpoint && !showVelocityVector) {
+                    const centerpointIcon = L.divIcon({
+                        className: 'centerpoint-icon',
+                        html: `<div style="
+                            width: 14px;
+                            height: 14px;
+                            background: linear-gradient(135deg, #667eea, #764ba2);
+                            border: 2px solid #fff;
+                            border-radius: 50%;
+                            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                        "></div>`,
+                        iconSize: [14, 14],
+                        iconAnchor: [7, 7]
+                    });
+                    centerpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { icon: centerpointIcon })
+                        .addTo(leafletMap);
+                }
+                
+                // If velocity is on, redraw it (so it shows its orange dot now that trail is off)
+                if (showVelocityVector) {
+                    drawVelocityVector();
+                }
             });
             
             onBtn.addEventListener('click', () => {
@@ -3835,8 +3860,19 @@
                     centerpointMarker = null;
                 }
                 
+                // Remove velocity centerpoint marker too (trail end dot will serve as marker)
+                if (velocityCenterpointMarker) {
+                    leafletMap.removeLayer(velocityCenterpointMarker);
+                    velocityCenterpointMarker = null;
+                }
+                
                 drawTrail();
                 initAnimationControls();
+                
+                // If velocity is on, redraw arrow from trail endpoint
+                if (showVelocityVector) {
+                    drawVelocityVector();
+                }
             });
         }
         
@@ -3851,7 +3887,29 @@
                 onBtn.classList.remove('active');
                 velocityInfo.style.display = 'none';
                 clearVelocityVector();
-                updateCenterpoint(); // Restore main centerpoint marker
+                
+                // Restore centerpoint marker without resetting map view (only if trail is off)
+                if (!showTrail) {
+                    const { startDate, endDate } = getMapDateRange();
+                    const centerpoint = calculateCenterpoint(startDate, endDate);
+                    if (centerpoint) {
+                        const centerpointIcon = L.divIcon({
+                            className: 'centerpoint-icon',
+                            html: `<div style="
+                                width: 14px;
+                                height: 14px;
+                                background: linear-gradient(135deg, #667eea, #764ba2);
+                                border: 2px solid #fff;
+                                border-radius: 50%;
+                                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                            "></div>`,
+                            iconSize: [14, 14],
+                            iconAnchor: [7, 7]
+                        });
+                        centerpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { icon: centerpointIcon })
+                            .addTo(leafletMap);
+                    }
+                }
             });
             
             onBtn.addEventListener('click', () => {
@@ -3950,22 +4008,12 @@
             
             clearVelocityVector();
             
-            // Get date range from main time range dropdown (not separate velocity dropdown)
+            // Use the same date range as the rest of the map (critical for consistency)
+            const { startDate, endDate } = getMapDateRange();
             const timeRange = document.getElementById('map-time-range').value;
-            const now = getAccurateNow();
-            let startDate, endDate;
             
-            if (timeRange === 'all') {
-                startDate = new Date(entries[0].timestamp);
-                endDate = now;
-            } else if (timeRange === 'thisYear') {
-                startDate = new Date(now.getFullYear(), 0, 1); // Jan 1 of this year
-                endDate = now;
-            } else if (timeRange === 'thisMonth') {
-                startDate = new Date(now.getFullYear(), now.getMonth(), 1); // 1st of this month
-                endDate = now;
-            } else {
-                // For specific year or custom, velocity shouldn't be shown
+            // Only show for lifetime, thisYear, thisMonth
+            if (!['all', 'thisYear', 'thisMonth'].includes(timeRange)) {
                 return;
             }
             
@@ -3978,33 +4026,7 @@
                 return;
             }
             
-            // Draw the velocity centerpoint marker (orange to match arrow)
-            const velocityCpIcon = L.divIcon({
-                className: 'velocity-centerpoint-icon',
-                html: `<div style="
-                    width: 14px;
-                    height: 14px;
-                    background: #f97316;
-                    border: 2px solid #fff;
-                    border-radius: 50%;
-                    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                "></div>`,
-                iconSize: [14, 14],
-                iconAnchor: [7, 7]
-            });
-            
-            velocityCenterpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { 
-                icon: velocityCpIcon,
-                zIndexOffset: 1000 // Ensure it's above other markers
-            }).addTo(leafletMap);
-            
-            // Hide the main centerpoint marker when showing year or month
-            // (for lifetime, they're the same point so it doesn't matter)
-            if (timeRange !== 'all' && centerpointMarker) {
-                leafletMap.removeLayer(centerpointMarker);
-            }
-            
-            // Get current location
+            // Get current location first (needed for arrow calculations)
             const currentLoc = getCurrentLocation();
             
             if (!currentLoc) {
@@ -4018,6 +4040,38 @@
             const distanceKm = getDistanceKm(centerpoint.lat, centerpoint.lng, currentLoc.lat, currentLoc.lng);
             const distanceMiles = distanceKm * 0.621371;
             
+            // Arrow length is 25% of the distance to current location
+            const arrowLengthKm = distanceKm * 0.25;
+            
+            // Draw the velocity centerpoint marker (orange to match arrow)
+            // Only draw if trail is not showing (trail end dot serves as centerpoint when trail is on)
+            if (!showTrail) {
+                const velocityCpIcon = L.divIcon({
+                    className: 'velocity-centerpoint-icon',
+                    html: `<div style="
+                        width: 14px;
+                        height: 14px;
+                        background: #f97316;
+                        border: 2px solid #fff;
+                        border-radius: 50%;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                    "></div>`,
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                });
+                
+                velocityCenterpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { 
+                    icon: velocityCpIcon,
+                    zIndexOffset: 1000 // Ensure it's above other markers
+                }).addTo(leafletMap);
+            }
+            
+            // Hide the main centerpoint marker (velocity marker or trail end will show instead)
+            if (centerpointMarker) {
+                leafletMap.removeLayer(centerpointMarker);
+                centerpointMarker = null;
+            }
+            
             // Calculate total time in the selected range (in days)
             const totalDays = (endDate - startDate) / (1000 * 60 * 60 * 24);
             
@@ -4026,17 +4080,6 @@
             
             // Calculate bearing from centerpoint to current location
             const bearing = calculateBearing(centerpoint.lat, centerpoint.lng, currentLoc.lat, currentLoc.lng);
-            
-            // Arrow length scaled by timeframe (reduced to 1/3 of original)
-            // Lifetime = largest, Year = medium, Month = smallest
-            let arrowLengthKm;
-            if (timeRange === 'all') {
-                arrowLengthKm = 27; // was 80
-            } else if (timeRange === 'thisYear') {
-                arrowLengthKm = 17; // was 50
-            } else {
-                arrowLengthKm = 10; // was 30 (month)
-            }
             
             // Get arrow endpoint
             const arrowEnd = getArrowEndpoint(centerpoint.lat, centerpoint.lng, bearing, arrowLengthKm);
@@ -4052,7 +4095,7 @@
             ).addTo(leafletMap);
             
             // Draw arrowhead
-            const headSize = arrowLengthKm * 0.15;
+            const headSize = Math.max(arrowLengthKm * 0.2, 1); // Min 1km head size
             const headAngle1 = bearing - 150;
             const headAngle2 = bearing + 150;
             const head1 = getArrowEndpoint(arrowEnd.lat, arrowEnd.lng, headAngle1, headSize);
