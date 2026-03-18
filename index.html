@@ -1364,7 +1364,7 @@
         
         const QUICK_LOCATIONS = [
             'Washington DC', 'Maryland', 'Delaware', 'New York', 'Virginia',
-            'California', 'Flights', 'Pennsylvania', 'Mexico'
+            'California', 'Flight', 'Pennsylvania', 'Mexico'
         ];
         
         const ALL_LOCATIONS = [
@@ -3349,8 +3349,17 @@
                         .addTo(leafletMap);
                 }
                 
-                // Pan to centerpoint
-                leafletMap.setView([centerpoint.lat, centerpoint.lng], 5);
+                // Zoom to fit centerpoint, childhood home, and birthplace when both toggles are off
+                // When trail is on, it handles its own fitBounds
+                // When only velocity is on, keep current zoom
+                if (!showTrail && !showVelocityVector) {
+                    const bounds = L.latLngBounds([
+                        [centerpoint.lat, centerpoint.lng],
+                        CHILDHOOD_HOME,
+                        BIRTHPLACE
+                    ]);
+                    leafletMap.fitBounds(bounds, { padding: [50, 50] });
+                }
                 
                 // Get nearest city
                 const nearest = getNearestCity(centerpoint.lat, centerpoint.lng);
@@ -4118,7 +4127,8 @@
             ).addTo(leafletMap);
             
             // Draw arrowhead
-            const headSize = Math.max(arrowLengthKm * 0.2, 1); // Min 1km head size
+            // Arrowhead size proportional to arrow length (20% of arrow, min 0.05km = 50m)
+            const headSize = Math.max(arrowLengthKm * 0.2, 0.05);
             const headAngle1 = bearing - 150;
             const headAngle2 = bearing + 150;
             const head1 = getArrowEndpoint(arrowEnd.lat, arrowEnd.lng, headAngle1, headSize);
