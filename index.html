@@ -1212,6 +1212,8 @@
                             <label class="control-label">Time Range</label>
                             <select class="control-select" id="map-time-range">
                                 <option value="all">Lifetime</option>
+                                <option value="thisYear">This Year</option>
+                                <option value="thisMonth">This Month</option>
                                 <option value="year">Specific Year</option>
                                 <option value="custom">Custom Range</option>
                             </select>
@@ -1267,7 +1269,7 @@
                         <div class="centerpoint-title">Historical Trail</div>
                         <div class="trail-toggle">
                             <button class="tab-btn active" id="trail-off-btn">Off</button>
-                            <button class="tab-btn" id="trail-on-btn">Show Trail</button>
+                            <button class="tab-btn" id="trail-on-btn">Show</button>
                         </div>
                         
                         <div id="animation-controls" style="display:none; margin-top: 15px;">
@@ -1287,7 +1289,7 @@
                         </div>
                     </div>
                     
-                    <div class="centerpoint-info">
+                    <div class="centerpoint-info" id="velocity-box">
                         <div class="centerpoint-title">Velocity Vector</div>
                         <div class="trail-toggle">
                             <button class="tab-btn active" id="velocity-off-btn">Off</button>
@@ -1295,17 +1297,10 @@
                         </div>
                         
                         <div id="velocity-info" style="display:none; margin-top: 15px;">
-                            <div style="margin-bottom: 12px;">
-                                <select id="velocity-range-select" class="control-select" style="padding: 8px 12px; font-size: 0.85rem;">
-                                    <option value="lifetime">Lifetime</option>
-                                    <option value="year">This Year</option>
-                                    <option value="month">This Month</option>
-                                </select>
-                            </div>
                             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                                <div style="font-size: 1.5rem; color: #667eea;">➤</div>
+                                <div style="font-size: 1.5rem; color: #f97316;">➤</div>
                                 <div>
-                                    <div id="velocity-value" style="font-size: 1.1rem; font-weight: 600; color: #667eea;">--</div>
+                                    <div id="velocity-value" style="font-size: 1.1rem; font-weight: 600; color: #f97316;">--</div>
                                     <div id="velocity-direction" style="font-size: 0.85rem; color: #888;">toward --</div>
                                 </div>
                             </div>
@@ -2207,9 +2202,10 @@
         // STATS PAGE
         // ============================================
         function initStatsControls() {
-            document.querySelectorAll('.tab-btn').forEach(btn => {
+            // Only target chart type buttons on stats page, not map page toggles
+            document.querySelectorAll('#page-stats .tab-btn[data-chart]').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('#page-stats .tab-btn[data-chart]').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                     activeChartType = btn.dataset.chart;
                     updateStatsUI();
@@ -2853,13 +2849,35 @@
             const dateControls = document.getElementById('map-date-controls');
             const dateFrom = document.getElementById('map-date-from');
             const dateTo = document.getElementById('map-date-to');
+            const velocityBox = document.getElementById('velocity-box');
+            
+            function updateControlsVisibility() {
+                const value = timeRange.value;
+                yearGroup.style.display = value === 'year' ? 'block' : 'none';
+                dateControls.classList.toggle('show', value === 'custom');
+                
+                // Show velocity box only for lifetime, thisYear, thisMonth
+                const showVelocity = ['all', 'thisYear', 'thisMonth'].includes(value);
+                velocityBox.style.display = showVelocity ? 'block' : 'none';
+                
+                // If velocity was on but we're hiding the box, turn it off
+                if (!showVelocity && showVelocityVector) {
+                    showVelocityVector = false;
+                    document.getElementById('velocity-off-btn').classList.add('active');
+                    document.getElementById('velocity-on-btn').classList.remove('active');
+                    document.getElementById('velocity-info').style.display = 'none';
+                    clearVelocityVector();
+                }
+            }
             
             timeRange.addEventListener('change', () => {
-                yearGroup.style.display = timeRange.value === 'year' ? 'block' : 'none';
-                dateControls.classList.toggle('show', timeRange.value === 'custom');
+                updateControlsVisibility();
                 stopAnimation();
                 updateCenterpoint();
             });
+            
+            // Initial visibility check
+            updateControlsVisibility();
             
             yearSelect.addEventListener('change', () => {
                 stopAnimation();
@@ -3009,16 +3027,23 @@
         function getMapDateRange() {
             const timeRange = document.getElementById('map-time-range').value;
             let startDate, endDate;
+            const now = getAccurateNow();
             
             try {
                 if (timeRange === 'all') {
                     startDate = new Date(entries[0].timestamp);
-                    endDate = getAccurateNow();
+                    endDate = now;
+                } else if (timeRange === 'thisYear') {
+                    startDate = new Date(now.getFullYear(), 0, 1); // Jan 1 of this year
+                    endDate = now;
+                } else if (timeRange === 'thisMonth') {
+                    startDate = new Date(now.getFullYear(), now.getMonth(), 1); // 1st of this month
+                    endDate = now;
                 } else if (timeRange === 'year') {
                     const year = parseInt(document.getElementById('map-year-select').value);
                     if (isNaN(year)) {
                         startDate = new Date(entries[0].timestamp);
-                        endDate = getAccurateNow();
+                        endDate = now;
                     } else {
                         startDate = new Date(year, 0, 1);
                         endDate = new Date(year + 1, 0, 1);
@@ -3819,7 +3844,6 @@
             const offBtn = document.getElementById('velocity-off-btn');
             const onBtn = document.getElementById('velocity-on-btn');
             const velocityInfo = document.getElementById('velocity-info');
-            const rangeSelect = document.getElementById('velocity-range-select');
             
             offBtn.addEventListener('click', () => {
                 showVelocityVector = false;
@@ -3836,12 +3860,6 @@
                 offBtn.classList.remove('active');
                 velocityInfo.style.display = 'block';
                 drawVelocityVector();
-            });
-            
-            rangeSelect.addEventListener('change', () => {
-                if (showVelocityVector) {
-                    drawVelocityVector();
-                }
             });
         }
         
@@ -3932,20 +3950,23 @@
             
             clearVelocityVector();
             
-            // Get date range based on velocity dropdown (not main map range)
-            const velocityRange = document.getElementById('velocity-range-select').value;
+            // Get date range from main time range dropdown (not separate velocity dropdown)
+            const timeRange = document.getElementById('map-time-range').value;
             const now = getAccurateNow();
             let startDate, endDate;
             
-            if (velocityRange === 'lifetime') {
+            if (timeRange === 'all') {
                 startDate = new Date(entries[0].timestamp);
                 endDate = now;
-            } else if (velocityRange === 'year') {
+            } else if (timeRange === 'thisYear') {
                 startDate = new Date(now.getFullYear(), 0, 1); // Jan 1 of this year
                 endDate = now;
-            } else if (velocityRange === 'month') {
+            } else if (timeRange === 'thisMonth') {
                 startDate = new Date(now.getFullYear(), now.getMonth(), 1); // 1st of this month
                 endDate = now;
+            } else {
+                // For specific year or custom, velocity shouldn't be shown
+                return;
             }
             
             const centerpoint = calculateCenterpoint(startDate, endDate);
@@ -3957,13 +3978,13 @@
                 return;
             }
             
-            // Draw the velocity centerpoint marker (purple to match main centerpoint)
+            // Draw the velocity centerpoint marker (orange to match arrow)
             const velocityCpIcon = L.divIcon({
                 className: 'velocity-centerpoint-icon',
                 html: `<div style="
                     width: 14px;
                     height: 14px;
-                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    background: #f97316;
                     border: 2px solid #fff;
                     border-radius: 50%;
                     box-shadow: 0 2px 10px rgba(0,0,0,0.3);
@@ -3972,12 +3993,14 @@
                 iconAnchor: [7, 7]
             });
             
-            velocityCenterpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { icon: velocityCpIcon })
-                .addTo(leafletMap);
+            velocityCenterpointMarker = L.marker([centerpoint.lat, centerpoint.lng], { 
+                icon: velocityCpIcon,
+                zIndexOffset: 1000 // Ensure it's above other markers
+            }).addTo(leafletMap);
             
             // Hide the main centerpoint marker when showing year or month
             // (for lifetime, they're the same point so it doesn't matter)
-            if (velocityRange !== 'lifetime' && centerpointMarker) {
+            if (timeRange !== 'all' && centerpointMarker) {
                 leafletMap.removeLayer(centerpointMarker);
             }
             
@@ -4004,25 +4027,25 @@
             // Calculate bearing from centerpoint to current location
             const bearing = calculateBearing(centerpoint.lat, centerpoint.lng, currentLoc.lat, currentLoc.lng);
             
-            // Arrow length scaled by timeframe (not velocity)
+            // Arrow length scaled by timeframe (reduced to 1/3 of original)
             // Lifetime = largest, Year = medium, Month = smallest
             let arrowLengthKm;
-            if (velocityRange === 'lifetime') {
-                arrowLengthKm = 80;
-            } else if (velocityRange === 'year') {
-                arrowLengthKm = 50;
+            if (timeRange === 'all') {
+                arrowLengthKm = 27; // was 80
+            } else if (timeRange === 'thisYear') {
+                arrowLengthKm = 17; // was 50
             } else {
-                arrowLengthKm = 30; // month
+                arrowLengthKm = 10; // was 30 (month)
             }
             
             // Get arrow endpoint
             const arrowEnd = getArrowEndpoint(centerpoint.lat, centerpoint.lng, bearing, arrowLengthKm);
             
-            // Draw the arrow line (purple to match centerpoint)
+            // Draw the arrow line (orange color)
             const arrowLine = L.polyline(
                 [[centerpoint.lat, centerpoint.lng], [arrowEnd.lat, arrowEnd.lng]],
                 {
-                    color: '#667eea',
+                    color: '#f97316',
                     weight: 3,
                     opacity: 0.9
                 }
@@ -4038,11 +4061,15 @@
             const arrowHead = L.polyline(
                 [[head1.lat, head1.lng], [arrowEnd.lat, arrowEnd.lng], [head2.lat, head2.lng]],
                 {
-                    color: '#667eea',
+                    color: '#f97316',
                     weight: 3,
                     opacity: 0.9
                 }
             ).addTo(leafletMap);
+            
+            // Bring arrow to front (above trail)
+            arrowLine.bringToFront();
+            arrowHead.bringToFront();
             
             // Store references for cleanup
             velocityArrow = [arrowLine, arrowHead];
