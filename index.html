@@ -3178,6 +3178,31 @@
                 return pointTime >= gpsStart && pointTime <= endDate;
             });
             
+            // Build list of flight periods from manual entries (to use as GPS boundaries)
+            const flightPeriods = [];
+            for (let i = 0; i < entries.length; i++) {
+                const entry = entries[i];
+                if (isFlight(entry.location)) {
+                    const flightStart = new Date(entry.timestamp);
+                    const flightEnd = entries[i + 1] ? new Date(entries[i + 1].timestamp) : endDate;
+                    if (flightEnd > gpsStart && flightStart < endDate) {
+                        flightPeriods.push({ start: flightStart, end: flightEnd });
+                    }
+                }
+            }
+            
+            // Helper: Find if a time falls within a flight period
+            function getFlightAt(time) {
+                return flightPeriods.find(f => time >= f.start && time < f.end);
+            }
+            
+            // Helper: Find the next flight that starts after a given time
+            function getNextFlightAfter(time) {
+                return flightPeriods
+                    .filter(f => f.start > time)
+                    .sort((a, b) => a.start - b.start)[0];
+            }
+            
             if (relevantPoints.length > 0) {
                 // Calculate time-weighted average of GPS points
                 for (let i = 0; i < relevantPoints.length; i++) {
@@ -3192,15 +3217,27 @@
                     // Ensure timestamp is a Date object
                     const pointTime = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
                     
+                    // Skip GPS points that fall during a flight
+                    if (getFlightAt(pointTime)) continue;
+                    
                     // Calculate duration: time until next point, or until endDate if last point
                     let duration;
+                    let effectiveEndTime;
                     if (nextPoint) {
                         const nextTime = nextPoint.timestamp instanceof Date ? nextPoint.timestamp : new Date(nextPoint.timestamp);
-                        duration = (nextTime - pointTime) / 1000;
+                        effectiveEndTime = nextTime;
                     } else {
-                        const endTime = endDate > getAccurateNow() ? getAccurateNow() : endDate;
-                        duration = (endTime - pointTime) / 1000;
+                        effectiveEndTime = endDate > getAccurateNow() ? getAccurateNow() : endDate;
                     }
+                    
+                    // Check if there's a flight between this GPS point and the next
+                    // If so, cap this GPS point's duration at the flight start
+                    const nextFlight = getNextFlightAfter(pointTime);
+                    if (nextFlight && nextFlight.start < effectiveEndTime) {
+                        effectiveEndTime = nextFlight.start;
+                    }
+                    
+                    duration = (effectiveEndTime - pointTime) / 1000;
                     
                     // Skip if duration is invalid
                     if (duration <= 0 || duration > 30 * 24 * 60 * 60) continue;
@@ -3545,12 +3582,52 @@
                 return t >= gpsStart && t <= effectiveEnd;
             });
             
+            // Build list of flight periods from manual entries (to use as GPS boundaries)
+            const flightPeriods = [];
+            for (let i = 0; i < entries.length; i++) {
+                const entry = entries[i];
+                if (isFlight(entry.location)) {
+                    const flightStart = new Date(entry.timestamp);
+                    const flightEnd = entries[i + 1] ? new Date(entries[i + 1].timestamp) : effectiveEnd;
+                    if (flightEnd > gpsStart && flightStart < effectiveEnd) {
+                        flightPeriods.push({ start: flightStart, end: flightEnd });
+                    }
+                }
+            }
+            
+            // Helper: Find if a time falls within a flight period
+            function getFlightAt(time) {
+                return flightPeriods.find(f => time >= f.start && time < f.end);
+            }
+            
+            // Helper: Find the next flight that starts after a given time
+            function getNextFlightAfter(time) {
+                return flightPeriods
+                    .filter(f => f.start > time)
+                    .sort((a, b) => a.start - b.start)[0];
+            }
+            
             for (let i = 0; i < relevantGPS.length; i++) {
                 const point = relevantGPS[i];
                 const pointTime = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
-                const nextTime = relevantGPS[i + 1] 
+                
+                // Skip GPS points that fall during a flight (shouldn't happen if Overland is off, but just in case)
+                if (getFlightAt(pointTime)) continue;
+                
+                // Default end time is next GPS point or effectiveEnd
+                let endTime = relevantGPS[i + 1] 
                     ? (relevantGPS[i + 1].timestamp instanceof Date ? relevantGPS[i + 1].timestamp : new Date(relevantGPS[i + 1].timestamp))
                     : effectiveEnd;
+                
+                // Check if there's a flight between this GPS point and the next
+                // If so, cap this GPS point's duration at the flight start
+                const nextFlight = getNextFlightAfter(pointTime);
+                if (nextFlight && nextFlight.start < endTime) {
+                    endTime = nextFlight.start;
+                }
+                
+                // Skip if no duration after clamping
+                if (endTime <= pointTime) continue;
                 
                 const lat = parseFloat(point.latitude);
                 const lng = parseFloat(point.longitude);
@@ -3559,7 +3636,7 @@
                 const cart = toCartesian(lat, lng);
                 contributions.push({
                     start: pointTime,
-                    end: nextTime,
+                    end: endTime,
                     x: cart.x,
                     y: cart.y,
                     z: cart.z
