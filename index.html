@@ -1364,7 +1364,7 @@
         
         const QUICK_LOCATIONS = [
             'Washington DC', 'Maryland', 'Delaware', 'New York', 'Virginia',
-            'California', 'Flight', 'Pennsylvania', 'Mexico'
+            'California', 'Flights', 'Pennsylvania', 'Mexico'
         ];
         
         const ALL_LOCATIONS = [
@@ -1377,7 +1377,7 @@
             'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon',
             'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
             'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington',
-            'West Virginia', 'Wisconsin', 'Wyoming', 'Washington DC', 'Flight', 'Flights',
+            'West Virginia', 'Wisconsin', 'Wyoming', 'Washington DC', 'Flights',
             'Canada', 'Mexico', 'United Kingdom', 'England', 'France', 'Germany',
             'Italy', 'Spain', 'Portugal', 'Netherlands', 'Belgium', 'Switzerland',
             'Austria', 'Australia', 'New Zealand', 'Japan', 'South Korea', 'China',
@@ -1700,6 +1700,13 @@
                         new Date(a.timestamp) - new Date(b.timestamp)
                     );
                     
+                    // Normalize "Flight" to "Flights" for consistency
+                    entries.forEach(e => {
+                        if (e.location && e.location.toLowerCase() === 'flight') {
+                            e.location = 'Flights';
+                        }
+                    });
+                    
                     if (result.serverTime) {
                         timeOffset = new Date(result.serverTime).getTime() - Date.now();
                     }
@@ -1717,6 +1724,12 @@
                 const cached = localStorage.getItem('pie_chart_entries');
                 if (cached) {
                     entries = JSON.parse(cached);
+                    // Normalize "Flight" to "Flights" for consistency
+                    entries.forEach(e => {
+                        if (e.location && e.location.toLowerCase() === 'flight') {
+                            e.location = 'Flights';
+                        }
+                    });
                     buildLocationColorMap();
                     updateCurrentLocation();
                 }
