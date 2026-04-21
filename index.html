@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><circle cx='50' cy='50' r='35' fill='none' stroke='%23667eea' stroke-width='8'/><path d='M50 50 L50 15 A35 35 0 0 1 80 65 Z' fill='%23764ba2'/></svg>">
-    <title>Pie Chart of Life</title>
+    <title>Pie Chart of Life v57</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1540,6 +1540,8 @@
         let timerInterval = null;
         let pendingLocation = null;
         let offlineQueue = [];
+        let sentClientIds = new Set(); // Track successfully sent entries to prevent duplicates
+        let isLogging = false; // Debounce flag to prevent rapid double-taps
         let timeOffset = 0;
         let statsChart = null;
         let activeChartType = 'pie';
@@ -1837,30 +1839,59 @@
         }
         
         // ============================================
-        // OFFLINE QUEUE
+        // OFFLINE QUEUE (v57 - Fixed duplicate prevention)
         // ============================================
+        function generateClientId() {
+            // Generate unique ID: timestamp + random string
+            return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+        }
+        
         function loadOfflineQueue() {
             const saved = localStorage.getItem('pie_chart_offline_queue');
             if (saved) offlineQueue = JSON.parse(saved);
+            
+            // Load sent client IDs to prevent re-sending
+            const sentIds = localStorage.getItem('pie_chart_sent_ids');
+            if (sentIds) sentClientIds = new Set(JSON.parse(sentIds));
         }
         
         function saveOfflineQueue() {
             localStorage.setItem('pie_chart_offline_queue', JSON.stringify(offlineQueue));
         }
         
+        function saveSentClientIds() {
+            // Only keep last 100 IDs to prevent localStorage bloat
+            const idsArray = [...sentClientIds].slice(-100);
+            localStorage.setItem('pie_chart_sent_ids', JSON.stringify(idsArray));
+        }
+        
         async function syncOfflineQueue() {
             if (offlineQueue.length === 0) return;
-            const queue = [...offlineQueue];
-            offlineQueue = [];
             
-            for (const entry of queue) {
+            // Filter out entries that were already successfully sent
+            const unsent = offlineQueue.filter(e => !sentClientIds.has(e.clientId));
+            if (unsent.length === 0) {
+                offlineQueue = [];
+                saveOfflineQueue();
+                return;
+            }
+            
+            const stillPending = [];
+            
+            for (const entry of unsent) {
                 try {
                     await sendEntry(entry, false);
+                    // Mark as successfully sent
+                    sentClientIds.add(entry.clientId);
                 } catch (error) {
-                    offlineQueue.push(entry);
+                    // Keep in queue for retry
+                    stillPending.push(entry);
                 }
             }
+            
+            offlineQueue = stillPending;
             saveOfflineQueue();
+            saveSentClientIds();
         }
         
         // ============================================
@@ -1882,7 +1913,19 @@
         }
         
         async function logLocation(location, tripDescription = '') {
+            // Debounce: prevent rapid double-taps
+            if (isLogging) {
+                console.log('Already logging, ignoring duplicate tap');
+                return;
+            }
+            isLogging = true;
+            
+            // Generate unique client ID for this entry
+            const clientId = generateClientId();
+            const timestamp = new Date().toISOString();
+            
             const entryData = {
+                clientId: clientId,
                 location: location,
                 trip_description: tripDescription,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -1891,18 +1934,29 @@
             try {
                 updateSyncStatus('syncing');
                 const result = await sendEntry(entryData);
+                sentClientIds.add(clientId);
+                saveSentClientIds();
                 currentEntry = result.entry;
                 updateCurrentLocation();
                 updateSyncStatus('online');
             } catch (error) {
-                entryData.timestamp = new Date().toISOString();
+                // Offline: add timestamp and queue for later
+                entryData.timestamp = timestamp;
                 offlineQueue.push(entryData);
                 saveOfflineQueue();
-                entries.push(entryData);
+                
+                // Add to local entries for immediate display
+                entries.push({
+                    ...entryData,
+                    pending: true // Mark as pending sync
+                });
                 localStorage.setItem('pie_chart_entries', JSON.stringify(entries));
                 updateCurrentLocation();
                 updateSyncStatus('offline');
             }
+            
+            // Reset debounce after a short delay
+            setTimeout(() => { isLogging = false; }, 500);
         }
         
         async function updateTripDescription(row, tripDescription) {
@@ -2839,9 +2893,10 @@
                 const end = actualIndex < entries.length - 1 ? new Date(entries[actualIndex + 1].timestamp) : getAccurateNow();
                 const seconds = (end - start) / 1000;
                 const duration = formatDuration(seconds);
+                const pendingBadge = entry.pending ? '<span style="color: #ffd93d; font-size: 0.75rem; margin-left: 8px;">⏳ Pending sync</span>' : '';
                 
-                return `<div class="history-item">
-                    <div class="history-location">${entry.location}</div>
+                return `<div class="history-item" ${entry.pending ? 'style="border-left: 3px solid #ffd93d;"' : ''}>
+                    <div class="history-location">${entry.location}${pendingBadge}</div>
                     <div class="history-time">${dateStr}</div>
                     <div class="history-duration">Duration: ${duration}</div>
                     ${entry.trip_description ? `<div class="history-trip">${entry.trip_description}</div>` : ''}
