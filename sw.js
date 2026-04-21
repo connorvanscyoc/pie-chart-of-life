@@ -1,5 +1,5 @@
-// Pie Chart of Life - Service Worker v1
-const CACHE_NAME = 'pie-chart-of-life-v1';
+// Pie Chart of Life - Service Worker v2
+const CACHE_NAME = 'pie-chart-of-life-v2';
 const urlsToCache = [
     './',
     './index.html',
