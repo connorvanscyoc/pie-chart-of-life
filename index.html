@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><circle cx='50' cy='50' r='35' fill='none' stroke='%23667eea' stroke-width='8'/><path d='M50 50 L50 15 A35 35 0 0 1 80 65 Z' fill='%23764ba2'/></svg>">
-    <title>Pie Chart of Life v57</title>
+    <title>Pie Chart of Life v58</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1532,6 +1532,38 @@
         }
         
         // ============================================
+        // HELPER: Resolve an entry's positional coordinates (v58)
+        // ============================================
+        // Returns [lat, lng] for use in centerpoint math.
+        //
+        // Priority:
+        //   1. Entry-specific lat/lng (if present and valid) - the granular,
+        //      per-entry coords set via the sheet's Lat/Lng columns. Used for
+        //      historical backfill where we know a specific address/town.
+        //   2. LOCATION_COORDS[entry.location] - the coarse state/country
+        //      center, used for legacy entries that predate the granular
+        //      data model.
+        //   3. null - if neither is available (logged to console for triage).
+        //
+        // This lets the pre-cutoff centerpoint math gracefully mix enriched
+        // and legacy entries during the backfill period.
+        function resolveEntryCoords(entry) {
+            // Check for entry-specific lat/lng first
+            if (entry.lat != null && entry.lat !== '' && entry.lng != null && entry.lng !== '') {
+                const lat = parseFloat(entry.lat);
+                const lng = parseFloat(entry.lng);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    return [lat, lng];
+                }
+            }
+            // Fall back to coarse LOCATION_COORDS lookup
+            const coords = LOCATION_COORDS[entry.location];
+            if (coords) return coords;
+            // No coords available
+            return null;
+        }
+        
+        // ============================================
         // STATE
         // ============================================
         let entries = [];
@@ -1839,7 +1871,8 @@
         }
         
         // ============================================
-        // OFFLINE QUEUE (v57 - Fixed duplicate prevention)
+        // OFFLINE QUEUE (v57 - duplicate prevention)
+        // (v58 - server-side clientId dedup closes the lost-response edge case)
         // ============================================
         function generateClientId() {
             // Generate unique ID: timestamp + random string
@@ -3204,31 +3237,56 @@
             
             // ============================================
             // PART 1: Historical data (before GPS cutoff)
-            // Uses state/country center coordinates
+            // Uses entry-specific coords when available (lat/lng columns),
+            // falling back to LOCATION_COORDS[location] for legacy entries.
             // ============================================
             const historicalEnd = endDate < GPS_CUTOFF_DATE ? endDate : GPS_CUTOFF_DATE;
             
             if (startDate < GPS_CUTOFF_DATE) {
-                const totals = calculateLocationTotals(startDate, historicalEnd);
+                // Iterate entries directly rather than aggregating by location.
+                // This preserves per-entry granularity so that multiple entries
+                // with the same location string (e.g. three "Maryland" entries
+                // at Baltimore, College Park, Jarrettsville) contribute to the
+                // centerpoint at their actual distinct coordinates.
+                const uniqueLocations = new Set();
                 
-                for (const [location, seconds] of Object.entries(totals)) {
-                    // Skip flights - they don't have a fixed location
-                    if (isFlight(location)) continue;
+                for (let i = 0; i < entries.length; i++) {
+                    const entry = entries[i];
+                    const entryStart = new Date(entry.timestamp);
+                    let entryEnd = i < entries.length - 1
+                        ? new Date(entries[i + 1].timestamp)
+                        : getAccurateNow();
                     
-                    const coords = LOCATION_COORDS[location];
+                    // Clamp entry to the historical window [startDate, historicalEnd)
+                    if (entryEnd > historicalEnd) entryEnd = new Date(historicalEnd);
+                    if (entryEnd <= startDate || entryStart >= historicalEnd) continue;
+                    
+                    // Skip flights - they don't have a fixed location
+                    if (isFlight(entry.location)) continue;
+                    
+                    // Resolve coords (entry-specific lat/lng -> LOCATION_COORDS fallback)
+                    const coords = resolveEntryCoords(entry);
                     if (!coords) {
-                        console.warn(`No coordinates for: ${location}`);
+                        console.warn(`No coordinates for: ${entry.location}`);
                         continue;
                     }
                     
-                    // Convert to Cartesian and accumulate
+                    // Clamp duration to the historical window
+                    const overlapStart = entryStart < startDate ? startDate : entryStart;
+                    const overlapEnd = entryEnd;
+                    const duration = (overlapEnd - overlapStart) / 1000;
+                    if (duration <= 0) continue;
+                    
+                    // Accumulate weighted Cartesian contribution
                     const cart = toCartesian(coords[0], coords[1]);
-                    totalWeightedX += cart.x * seconds;
-                    totalWeightedY += cart.y * seconds;
-                    totalWeightedZ += cart.z * seconds;
-                    totalTime += seconds;
-                    locationCount++;
+                    totalWeightedX += cart.x * duration;
+                    totalWeightedY += cart.y * duration;
+                    totalWeightedZ += cart.z * duration;
+                    totalTime += duration;
+                    uniqueLocations.add(entry.location);
                 }
+                
+                locationCount += uniqueLocations.size;
             }
             
             // ============================================
@@ -4520,7 +4578,8 @@
                 // Skip flights
                 if (isFlight(entry.location)) continue;
                 
-                const coords = LOCATION_COORDS[entry.location];
+                // Resolve coords (entry-specific lat/lng -> LOCATION_COORDS fallback)
+                const coords = resolveEntryCoords(entry);
                 if (!coords) continue;
                 
                 // Clamp to our range
