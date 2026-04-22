@@ -1,5 +1,8 @@
-// Pie Chart of Life - Service Worker v2
-const CACHE_NAME = 'pie-chart-of-life-v2';
+// Pie Chart of Life - Service Worker v3
+// Cache name bumped from v2 to v3 - this forces the activate handler to
+// delete the old cache, which forces a fresh fetch of index.html (and
+// therefore pickup of the new v58 app code).
+const CACHE_NAME = 'pie-chart-of-life-v3';
 const urlsToCache = [
     './',
     './index.html',
