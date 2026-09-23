@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><circle cx='50' cy='50' r='35' fill='none' stroke='%23667eea' stroke-width='8'/><path d='M50 50 L50 15 A35 35 0 0 1 80 65 Z' fill='%23764ba2'/></svg>">
-    <title>Pie Chart of Life v58</title>
+    <title>Pie Chart of Life v59</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1521,6 +1521,9 @@
         };
         
         // Home location for distance calculation
+        // CARTO basemap key (v59) - required on every map tile request
+        const CARTO_API_KEY = 'cb1_3vq8_1_f27ba342c08f762c53d548d6';
+
         const CHILDHOOD_HOME = [39.58291540715135, -76.46284266624608]; // 1507 Huntfield Way, Jarrettsville, MD 21084
         const BIRTHPLACE = [39.390890254029195, -76.62399299512069]; // GBMC Hospital, 6701 N Charles St, Towson, MD 21204
         
@@ -3073,8 +3076,10 @@
             if (!leafletMap) {
                 leafletMap = L.map('map-container').setView([39.8283, -98.5795], 4);
                 
-                // Dark map tiles (CARTO - no auth required)
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                // Dark map tiles (CARTO). v59: CARTO began requiring an API key in
+                // late Aug 2026 - keyless tiles come back stamped "API KEY REQUIRED".
+                // Free non-commercial key, requested Sep 2026 at carto.com/basemaps/apikey.
+                L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`, {
                     attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
                     subdomains: 'abcd',
                     maxZoom: 19
